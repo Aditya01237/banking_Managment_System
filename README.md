@@ -48,8 +48,27 @@ This project simulates the core functionalities of a banking system using C. It 
 
 ## 📁 Project Structure
 
-BankingManagementSystem/ ├── include/ # Header files (.h) defining interfaces and structures │ ├── admin.h │ ├── common.h │ ├── customer.h │ ├── data_access.h │ ├── employee.h │ ├── manager.h │ └── server.h ├── src/ # Source files (.c) implementing the logic │ ├── admin.c │ ├── admin_util.c # Utility to create initial users/accounts │ ├── client.c # Client program │ ├── common_utils.c# Generic helper functions │ ├── customer.c │ ├── data_access.c # Data storage and retrieval logic │ ├── employee.c │ ├── manager.c │ └── server.c # Main server logic (connection handling, threads) ├── data/ # Data files (.dat) - created automatically └── obj/ # Compiled object files (.o) - created during build
-
+BankingManagementSystem/
+├── include/        # Header files (.h) defining interfaces and structures
+│   ├── admin.h
+│   ├── common.h
+│   ├── customer.h
+│   ├── data_access.h
+│   ├── employee.h
+│   ├── manager.h
+│   └── server.h
+├── src/            # Source files (.c) implementing the logic
+│   ├── admin.c
+│   ├── admin_util.c  # Utility to create initial users/accounts
+│   ├── client.c      # Client program
+│   ├── common_utils.c# Generic helper functions
+│   ├── customer.c
+│   ├── data_access.c # Data storage and retrieval logic
+│   ├── employee.c
+│   ├── manager.c
+│   └── server.c      # Main server logic (connection handling, threads)
+├── data/           # Data files (.dat) - created automatically
+└── obj/            # Compiled object files (.o) - created during build
 
 ## 🧩 Modules
 
