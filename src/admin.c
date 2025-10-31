@@ -27,10 +27,10 @@ void admin_menu(int client_socket, User user) {
         switch(choice) {
             case 1:
                 // Ask for role and call the shared handler
-                write_string(client_socket, "Enter role (0=CUST, 1=EMP, 2=MAN): ");
+                write_string(client_socket, "Enter role (1=EMP, 2=MAN): ");
                 read_client_input(client_socket, buffer, MAX_BUFFER);
                 int role = atoi(buffer);
-                if (role >= 0 && role <= 2) {
+                if (role == 1 || role == 2) {
                     // Call function from employee module
                     handle_add_user(client_socket, (UserRole)role);
                 } else {

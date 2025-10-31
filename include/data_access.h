@@ -22,6 +22,10 @@ int find_account_record_by_number(char* acc_num);
 int find_loan_record(int loanId);
 int find_feedback_record(int feedbackId);
 
+// --- Uniqueness Check Functions ---
+int find_user_by_phone(const char* phone);
+int find_user_by_email(const char* email);
+
 // --- Data Reading ---
 User getUser(int userId); // Gets a User struct by ID
 Account getAccount(int accountId); // Gets an Account struct by ID

@@ -72,7 +72,10 @@ typedef struct {
 // (These could potentially move to a utils.h/utils.c)
 void write_string(int fd, const char* str);
 int my_strcmp(const char* s1, const char* s2);
-void read_client_input(int client_socket, char* buffer, int size);
+int read_client_input(int client_socket, char* buffer, int size);
+int is_valid_number(const char* str);
+int is_valid_email(const char* str);
+int is_valid_phone(const char* str);
 
 
 #endif // COMMON_H

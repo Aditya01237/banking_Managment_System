@@ -157,6 +157,42 @@ int find_feedback_record(int feedbackId) {
     set_file_lock(fd, F_UNLCK); close(fd); return -1;
 }
 
+// Finds a user record by phone number
+// Returns 0 if found, -1 if not found
+int find_user_by_phone(const char* phone) {
+    int fd = open(USER_FILE, O_RDONLY);
+    if (fd == -1) { return -1; } // Cannot open file, assume not found
+    
+    set_file_lock(fd, F_RDLCK); // Lock for reading
+    User user;
+    while (read(fd, &user, sizeof(User)) == sizeof(User)) {
+        if (my_strcmp(user.phone, phone) == 0) {
+            set_file_lock(fd, F_UNLCK); close(fd);
+            return 0; // Found
+        }
+    }
+    set_file_lock(fd, F_UNLCK); close(fd);
+    return -1; // Not found
+}
+
+// Finds a user record by email
+// Returns 0 if found, -1 if not found
+int find_user_by_email(const char* email) {
+    int fd = open(USER_FILE, O_RDONLY);
+    if (fd == -1) { return -1; } // Cannot open file, assume not found
+    
+    set_file_lock(fd, F_RDLCK); // Lock for reading
+    User user;
+    while (read(fd, &user, sizeof(User)) == sizeof(User)) {
+        if (my_strcmp(user.email, email) == 0) {
+            set_file_lock(fd, F_UNLCK); close(fd);
+            return 0; // Found
+        }
+    }
+    set_file_lock(fd, F_UNLCK); close(fd);
+    return -1; // Not found
+}
+
 // --- Data Reading Functions ---
 
 // Helper function to read a specific record
@@ -170,6 +206,7 @@ int read_record(void* record_buffer, int record_num, size_t record_size, const c
     }
 
     lseek(fd, record_num * record_size, SEEK_SET);
+
     ssize_t bytes_read = read(fd, record_buffer, record_size);
 
     set_record_lock(fd, record_num, record_size, F_UNLCK);
@@ -261,7 +298,7 @@ int append_record(void* new_record, size_t record_size, const char* filename) {
     
     set_file_lock(fd, F_WRLCK); // Lock whole file for appending
     ssize_t bytes_written = write(fd, new_record, record_size);
-    
+
     if (bytes_written > 0) {
         fsync(fd); // Force write to disk
     }

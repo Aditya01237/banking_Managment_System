@@ -5,6 +5,9 @@
 #include "common.h"     // For structs, enums, read_client_input, write_string
 #include <stdio.h>      // For sprintf
 #include <stdlib.h>     // For atoi
+#include <pthread.h>    // For threading
+
+pthread_mutex_t create_user_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 // --- Employee Menu ---
 void employee_menu(int client_socket, User user) {
@@ -40,64 +43,125 @@ void employee_menu(int client_socket, User user) {
     }
 }
 
-// --- Employee Action Handlers (using Data Access Layer) ---
-
 // Shared with Admin, implemented here for now
 void handle_add_user(int client_socket, UserRole role_to_add) {
     char buffer[MAX_BUFFER];
     User new_user;
-    // new_user.userId will be set by addUser
     new_user.role = role_to_add;
     new_user.isActive = 1;
 
-    // Get details from client
-    write_string(client_socket, "Enter new user's password: ");
-    read_client_input(client_socket, buffer, MAX_BUFFER);
-    strcpy(new_user.password, buffer);
-    
-    write_string(client_socket, "Enter user's First Name: ");
-    read_client_input(client_socket, buffer, MAX_BUFFER);
-    strcpy(new_user.firstName, buffer);
-    
-    write_string(client_socket, "Enter user's Last Name: ");
-    read_client_input(client_socket, buffer, MAX_BUFFER);
-    strcpy(new_user.lastName, buffer);
-    
-    write_string(client_socket, "Enter user's Phone: ");
-    read_client_input(client_socket, buffer, MAX_BUFFER);
-    strcpy(new_user.phone, buffer);
-    
-    write_string(client_socket, "Enter user's Email: ");
-    read_client_input(client_socket, buffer, MAX_BUFFER);
-    strcpy(new_user.email, buffer);
-    
-    write_string(client_socket, "Enter user's Address: ");
-    read_client_input(client_socket, buffer, MAX_BUFFER);
-    strcpy(new_user.address, buffer);
+    write_string(client_socket, "Enter '0' to cancel : ");
+    if(read_client_input(client_socket,buffer,MAX_BUFFER) == -1)return;
+    if(my_strcmp(buffer,"0") == 0)return;
 
-    // Add user using Data Access Layer
+    // --- Get and Validate All User Input (with re-prompt loops) ---
+
+    // 1. Password
+    while (1) {
+        write_string(client_socket, "Enter new user's password: ");
+        if (read_client_input(client_socket, buffer, MAX_BUFFER) == -1) return; // Disconnected
+        if (strlen(buffer) == 0 || strlen(buffer) >= 50) {
+            write_string(client_socket, "Invalid password (empty or too long). Please try again.\n");
+        } else {
+            strcpy(new_user.password, buffer);
+            break; // Valid input
+        }
+    }
+    
+    // 2. First Name
+    while (1) {
+        write_string(client_socket, "Enter user's First Name: ");
+        if (read_client_input(client_socket, buffer, MAX_BUFFER) == -1) return; // Disconnected
+        if (strlen(buffer) == 0 || strlen(buffer) >= 50) {
+            write_string(client_socket, "Invalid name (empty or too long). Please try again.\n");
+        } else {
+            strcpy(new_user.firstName, buffer);
+            break; // Valid input
+        }
+    }
+    
+    // 3. Last Name
+    while (1) {
+        write_string(client_socket, "Enter user's Last Name: ");
+        if (read_client_input(client_socket, buffer, MAX_BUFFER) == -1) return; // Disconnected
+        if (strlen(buffer) == 0 || strlen(buffer) >= 50) {
+            write_string(client_socket, "Invalid name (empty or too long). Please try again.\n");
+        } else {
+            strcpy(new_user.lastName, buffer);
+            break; // Valid input
+        }
+    }
+    
+    // 4. Phone
+    while (1) {
+        write_string(client_socket, "Enter user's Phone (10 digits): ");
+        if (read_client_input(client_socket, buffer, MAX_BUFFER) == -1) return; // Disconnected
+        if (!is_valid_phone(buffer)) {
+            write_string(client_socket, "Invalid phone number (must be 10 digits). Please try again.\n");
+        } else {
+            strcpy(new_user.phone, buffer);
+            break; // Valid input
+        }
+    }
+    
+    // 5. Email
+    while (1) {
+        write_string(client_socket, "Enter user's Email: ");
+        if (read_client_input(client_socket, buffer, MAX_BUFFER) == -1) return; // Disconnected
+        if (strlen(buffer) >= 100 || !is_valid_email(buffer)) {
+            write_string(client_socket, "Invalid email format (or too long). Please try again.\n");
+        } else {
+            strcpy(new_user.email, buffer);
+            break; // Valid input
+        }
+    }
+    
+    // 6. Address
+    while (1) {
+        write_string(client_socket, "Enter user's Address: ");
+        if (read_client_input(client_socket, buffer, MAX_BUFFER) == -1) return; // Disconnected
+        if (strlen(buffer) == 0 || strlen(buffer) >= 256) {
+            write_string(client_socket, "Invalid address (empty or too long). Please try again.\n");
+        } else {
+            strcpy(new_user.address, buffer);
+            break; // Valid input
+        }
+    }
+
+    // --- FIX: Prevent Race Condition & Check Uniqueness ---
+    pthread_mutex_lock(&create_user_mutex); 
+
+    // Uniqueness Check
+    if (find_user_by_phone(new_user.phone) == 0) { // 0 means "found"
+        write_string(client_socket, "Error: This phone number is already in use. Aborting.\n");
+        pthread_mutex_unlock(&create_user_mutex);
+        return;
+    }
+    if (find_user_by_email(new_user.email) == 0) { // 0 means "found"
+        write_string(client_socket, "Error: This email address is already in use. Aborting.\n");
+        pthread_mutex_unlock(&create_user_mutex);
+        return;
+    }
+    // (Note: We still abort for uniqueness, as that's a security/data integrity failure, not a typo)
+
+    new_user.userId = get_next_user_id();
+    
     if (addUser(new_user) != 0) {
-         write_string(client_socket, "Error adding user.\n");
+         write_string(client_socket, "Error adding user to file.\n");
+         pthread_mutex_unlock(&create_user_mutex);
          return;
     }
-    // Need the new ID for the message and account creation
-    // (Ideally addUser would return the new ID)
-    // Find the user we just added (inefficient but works for now)
-    int latest_id = get_next_user_id() - 1; 
-    new_user.userId = latest_id; 
-
-
-    // If it's a customer, create their first bank account
+    
     if (role_to_add == CUSTOMER) {
         Account new_account;
-        // accountId will be set by addAccount
         new_account.ownerUserId = new_user.userId;
         new_account.balance = 0.0;
         new_account.isActive = 1;
-        generate_new_account_number(new_account.accountNumber); // Generate "SB-10003" etc.
+        generate_new_account_number(new_account.accountNumber);
+        new_account.accountId = get_next_account_id();
 
         if (addAccount(new_account) == 0) {
-             sprintf(buffer, "User created successfully. New User ID: %d, New Account Number: %s\n", new_user.userId, new_account.accountNumber);
+             sprintf(buffer, "User created. New ID: %d, New Account: %s\n", new_user.userId, new_account.accountNumber);
              write_string(client_socket, buffer);
         } else {
              write_string(client_socket, "User created, but failed to create account.\n");
@@ -106,12 +170,18 @@ void handle_add_user(int client_socket, UserRole role_to_add) {
         sprintf(buffer, "User created successfully. New User ID: %d\n", new_user.userId);
         write_string(client_socket, buffer);
     }
+    
+    pthread_mutex_unlock(&create_user_mutex);
+    // --- END FIX ---
 }
 
 void handle_add_new_account(int client_socket) {
     char buffer[MAX_BUFFER];
-    write_string(client_socket, "Enter Customer User ID to add account to: ");
-    read_client_input(client_socket, buffer, MAX_BUFFER);
+    
+    write_string(client_socket, "Enter Customer User ID to add account to (or '0' to cancel): ");
+    if(read_client_input(client_socket,buffer,MAX_BUFFER) == -1)return;
+    if(my_strcmp(buffer,"0") == 0)return;
+
     int cust_id = atoi(buffer);
     
     // Check if user exists using Data Access Layer
@@ -143,8 +213,11 @@ void handle_add_new_account(int client_socket) {
 // Shared with Admin, implemented here
 void handle_modify_user_details(int client_socket, int admin_mode) {
     char buffer[MAX_BUFFER];
-    write_string(client_socket, "Enter User ID to modify: ");
-    read_client_input(client_socket, buffer, MAX_BUFFER);
+    
+    write_string(client_socket, "Enter User ID to modify (or '0' to cancel): ");
+    if(read_client_input(client_socket,buffer,MAX_BUFFER) == -1)return;
+    if(my_strcmp(buffer,"0") == 0)return;
+
     int target_user_id = atoi(buffer);
 
     User user = getUser(target_user_id); // Get user data
@@ -206,8 +279,10 @@ void handle_modify_user_details(int client_socket, int admin_mode) {
 
 void handle_view_customer_transactions(int client_socket) {
     char buffer[MAX_BUFFER];
-    write_string(client_socket, "Enter Customer Account Number (e.g., SB-10001): ");
-    read_client_input(client_socket, buffer, MAX_BUFFER);
+
+    write_string(client_socket, "Enter Customer Account Number (or '0' to cancel): ");
+    if(read_client_input(client_socket,buffer,MAX_BUFFER) == -1)return;
+    if(my_strcmp(buffer,"0") == 0)return;
     
     // Get account details using Data Access Layer
     Account account = getAccountByNum(buffer);
@@ -247,8 +322,11 @@ void handle_view_assigned_loans(int client_socket, int employeeId) {
 
 void handle_process_loan(int client_socket, int employeeId) {
     char buffer[MAX_BUFFER];
-    write_string(client_socket, "Enter Loan ID to process: ");
-    read_client_input(client_socket, buffer, MAX_BUFFER);
+
+    write_string(client_socket, "Enter Loan ID to process (or '0' to cancel): ");
+    if(read_client_input(client_socket,buffer,MAX_BUFFER) == -1)return;
+    if(my_strcmp(buffer,"0") == 0)return;
+
     int loanId = atoi(buffer);
 
     Loan loan = getLoan(loanId); // Use Data Access Layer

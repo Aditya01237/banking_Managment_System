@@ -109,7 +109,7 @@ void* handle_client(void* client_socket_ptr){
         write_string(client_socket,"Please select your role to log in:\n");
         write_string(client_socket," 1. Administrator\n 2. Manager\n 3. Employee\n 4. Customer\n");
         write_string(client_socket,"Enter choice (1-4): ");
-        read_client_input(client_socket,buffer,MAX_BUFFER); // Use generic util
+        if(read_client_input(client_socket,buffer,MAX_BUFFER) == -1)return NULL; // Client disconnected
         roleChoice = atoi(buffer);
 
         // --- Correct Mapping Logic ---
@@ -138,11 +138,11 @@ void* handle_client(void* client_socket_ptr){
     int userIdInput;
     char password[50];
     write_string(client_socket,"Enter User ID: ");
-    read_client_input(client_socket,buffer,MAX_BUFFER);
-    userIdInput = atoi(buffer); // converts a string of text into an integer.
+    if(read_client_input(client_socket,buffer,MAX_BUFFER) == -1)return NULL; // Client disconnected
+    userIdInput = atoi(buffer);
     write_string(client_socket,"Enter Password: ");
-    read_client_input(client_socket, buffer, MAX_BUFFER);
-    strcpy(password, buffer); // copies the password text from the temporary buffer
+    if(read_client_input(client_socket,buffer,MAX_BUFFER) == -1)return NULL; // Client disconnected
+    strcpy(password, buffer);
 
     // --- Authentication ---
     user = check_login(userIdInput,password);
