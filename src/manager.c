@@ -1,4 +1,3 @@
-// src/manager.c
 #include "manager.h"     // Function declarations for manager module
 #include "customer.h"    // For shared handle_view_my_details, handle_change_password
 #include "data_access.h" // For data access functions
@@ -9,7 +8,7 @@
 #include <errno.h>       // For errno
 #include <unistd.h>      // For lseek, close
 
-// --- Manager Menu ---
+// Manager Menu
 void manager_menu(int client_socket, User user)
 {
     char buffer[MAX_BUFFER];
@@ -34,7 +33,7 @@ void manager_menu(int client_socket, User user)
         {
         case 1:
             handle_set_account_status(client_socket, 0);
-            break; // 0 = Not admin
+            break;
         case 2:
             handle_assign_loan(client_socket);
             break;
@@ -43,10 +42,10 @@ void manager_menu(int client_socket, User user)
             break;
         case 4:
             handle_view_my_details(client_socket, user);
-            break; // Shared function
+            break;
         case 5:
             handle_change_password(client_socket, user.userId);
-            break; // Shared function
+            break;
         case 6:
             write_string(client_socket, "Logging out. Goodbye!\n");
             return;
@@ -56,12 +55,12 @@ void manager_menu(int client_socket, User user)
     }
 }
 
-// Shared with Admin, implemented here
+// Shared with Admin implemented here
 void handle_set_account_status(int client_socket, int admin_mode)
 {
     char buffer[MAX_BUFFER];
 
-    // 1. Get User ID
+    // Get User ID
     write_string(client_socket, "Enter User ID to modify status (or '0' to cancel): ");
     if (read_client_input(client_socket, buffer, MAX_BUFFER) == -1)
         return; // Disconnect
@@ -69,7 +68,7 @@ void handle_set_account_status(int client_socket, int admin_mode)
         return; // Back to menu
     int target_user_id = atoi(buffer);
 
-    // 2. Get Status
+    // Get Status
     write_string(client_socket, "Enter status (1=Active, 0=Deactivated) (or '0' to cancel): ");
     if (read_client_input(client_socket, buffer, MAX_BUFFER) == -1)
         return; // Disconnect
@@ -83,7 +82,7 @@ void handle_set_account_status(int client_socket, int admin_mode)
         return;
     }
 
-    // --- Update User Status ---
+    // Update User Status
     User user = getUser(target_user_id);
     if (user.userId == -1)
     {
@@ -107,7 +106,7 @@ void handle_set_account_status(int client_socket, int admin_mode)
         write_string(client_socket, "User status updated successfully.\n");
     }
 
-    // --- Update ALL accounts owned by this user ---
+    // Update ALL accounts owned by this user
     int fd_acct = open(ACCOUNT_FILE, O_RDWR);
     if (fd_acct == -1)
     {
@@ -135,7 +134,8 @@ void handle_set_account_status(int client_socket, int admin_mode)
         {
             // Found an account belonging to the user
             if (account.isActive != new_status)
-            { // Only update if needed
+            { 
+                // Only update if needed
                 account.isActive = new_status;
                 // Seek back to the beginning of this record to overwrite it
                 if (lseek(fd_acct, record_num * sizeof(Account), SEEK_SET) == -1)
@@ -275,7 +275,8 @@ void handle_assign_loan(int client_socket)
         loan_to_update.assignedToEmployeeId = employeeId;
         loan_to_update.status = PROCESSING; // Mark as processing
         if (updateLoan(loan_to_update) == 0)
-        { // Update using Data Access Layer
+        { 
+            // Update using Data Access Layer
             write_string(client_socket, "Loan assigned successfully.\n");
         }
         else
@@ -290,7 +291,7 @@ void handle_review_feedback(int client_socket)
     char buffer[MAX_BUFFER];
     int found = 0;
 
-    // --- Display unreviewed feedback ---
+    // Display unreviewed feedback
     int fd_feedback = open(FEEDBACK_FILE, O_RDONLY);
     if (fd_feedback == -1)
     {
@@ -320,9 +321,8 @@ void handle_review_feedback(int client_socket)
         write_string(client_socket, "No unreviewed feedback found.\n");
         return;
     }
-    // --- End display ---
 
-    // 1. Get Feedback ID
+    // Get Feedback ID
     write_string(client_socket, "Enter Feedback ID to mark as reviewed (or '0' to cancel): ");
     if (read_client_input(client_socket, buffer, MAX_BUFFER) == -1)
         return; // Disconnect
@@ -335,7 +335,7 @@ void handle_review_feedback(int client_socket)
         return;
     }
 
-    Feedback feedback_to_update = getFeedback(feedbackId); // Get data
+    Feedback feedback_to_update = getFeedback(feedbackId);
     if (feedback_to_update.feedbackId == -1)
     {
         write_string(client_socket, "Feedback ID not found.\n");
@@ -348,9 +348,9 @@ void handle_review_feedback(int client_socket)
     }
     else
     {
-        feedback_to_update.isReviewed = 1; // Mark as reviewed
+        feedback_to_update.isReviewed = 1;
         if (updateFeedback(feedback_to_update) == 0)
-        { // Update using Data Access Layer
+        { 
             write_string(client_socket, "Feedback marked as reviewed.\n");
         }
         else

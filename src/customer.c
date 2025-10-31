@@ -1,4 +1,3 @@
-// src/customer.c
 #include "customer.h"    // Function declarations for customer module
 #include "data_access.h" // For functions like getAccount, updateAccount, etc.
 #include "common.h"      // For structs, enums, read_client_input, write_string
@@ -36,7 +35,6 @@ void account_selection_menu(int client_socket, User user)
         write_string(client_socket, buffer);
         write_string(client_socket, "Enter your choice: ");
 
-        // FIX: Orphaned Session
         if (read_client_input(client_socket, buffer, MAX_BUFFER) == -1)
         {
             return; // Client disconnected
@@ -67,7 +65,6 @@ void customer_menu(int client_socket, User user, int accountId)
     {
         Account currentAccount = getAccount(accountId);
 
-        // FIX: read() Failure
         if (currentAccount.accountId == -1)
         {
             write_string(client_socket, "Error accessing account details. Returning to selection.\n");
@@ -76,14 +73,12 @@ void customer_menu(int client_socket, User user, int accountId)
         sprintf(buffer, "\n--- Customer Menu (Account: %s) ---\n", currentAccount.accountNumber);
         write_string(client_socket, buffer);
 
-        // ... (Menu options 1-12) ...
         write_string(client_socket, "1. View Balance\n2. Deposit Money\n3. Withdraw Money\n4. Transfer Funds\n5. View Transaction History\n6. Apply for Loan\n7. View Loan Status\n8. View My Personal Details\n9. Add Feedback\n10. View Feedback Status\n11. Change Password\n12. Switch Account / Logout\n");
         write_string(client_socket, "Enter your choice: ");
 
-        // FIX: Orphaned Session
         if (read_client_input(client_socket, buffer, MAX_BUFFER) == -1)
         {
-            return; // Client disconnected
+            return;
         }
         int choice = atoi(buffer);
         switch (choice)
@@ -122,20 +117,18 @@ void customer_menu(int client_socket, User user, int accountId)
             handle_change_password(client_socket, user.userId);
             break;
         case 12:
-            return; // Go back to account selection
+            return;
         default:
             write_string(client_socket, "Invalid choice.\n");
         }
     }
 }
 
-// --- Customer Action Handlers ---
 
 void handle_view_balance(int client_socket, int accountId)
 {
     Account account = getAccount(accountId);
 
-    // FIX: read() Failure
     if (account.accountId == -1)
     {
         write_string(client_socket, "Error retrieving account details.\n");
@@ -156,7 +149,6 @@ void handle_deposit(int client_socket, int accountId)
     if (my_strcmp(buffer, "0") == 0)
         return;
 
-    // FIX: Invalid Data Type
     if (!is_valid_number(buffer))
     {
         write_string(client_socket, "Invalid amount. Must be a positive number.\n");
@@ -179,7 +171,6 @@ void handle_deposit(int client_socket, int accountId)
 
     account.balance += amount;
 
-    // FIX: write() Failure
     if (updateAccount(account) == 0)
     {
         Transaction txn;
@@ -190,7 +181,6 @@ void handle_deposit(int client_socket, int accountId)
         txn.newBalance = account.balance;
         strcpy(txn.otherPartyAccountNumber, "---");
 
-        // FIX: write() Failure
         if (addTransaction(txn) != 0)
         {
             write_string(client_socket, "CRITICAL ERROR: Deposit Succeeded but FAILED to Log Transaction.\n");
@@ -215,7 +205,6 @@ void handle_withdraw(int client_socket, int accountId)
     if (my_strcmp(buffer, "0") == 0)
         return;
 
-    // FIX: Invalid Data Type
     if (!is_valid_number(buffer))
     {
         write_string(client_socket, "Invalid amount. Must be a positive number.\n");
@@ -243,7 +232,6 @@ void handle_withdraw(int client_socket, int accountId)
     {
         account.balance -= amount;
 
-        // FIX: write() Failure
         if (updateAccount(account) == 0)
         {
             Transaction txn;
@@ -254,7 +242,6 @@ void handle_withdraw(int client_socket, int accountId)
             txn.newBalance = account.balance;
             strcpy(txn.otherPartyAccountNumber, "---");
 
-            // FIX: write() Failure
             if (addTransaction(txn) != 0)
             {
                 write_string(client_socket, "CRITICAL ERROR: Withdrawal Succeeded but FAILED to Log Transaction.\n");
@@ -275,21 +262,20 @@ void handle_transfer_funds(int client_socket, int senderAccountId)
     char buffer[MAX_BUFFER];
     char receiver_acc_num[20];
     double amount;
-    JournalEntry senderUndo, receiverUndo, commitEntry; // For journaling
+    JournalEntry senderUndo, receiverUndo, commitEntry; 
 
-    // 1. Get Receiver Account Number (with re-prompt loop)
     while (1)
     {
         write_string(client_socket, "Enter Account Number to transfer to (or '0' to cancel): ");
         if (read_client_input(client_socket, buffer, MAX_BUFFER) == -1)
-            return; // Disconnected
+            return; 
         if (my_strcmp(buffer, "0") == 0)
-            return; // Back to menu
+            return; 
 
         if (strlen(buffer) > 0 && strlen(buffer) < 20)
         {
             strcpy(receiver_acc_num, buffer);
-            break; // Valid input format
+            break; 
         }
         else
         {
@@ -297,19 +283,18 @@ void handle_transfer_funds(int client_socket, int senderAccountId)
         }
     }
 
-    // 2. Get Amount (with re-prompt loop)
     while (1)
     {
         write_string(client_socket, "Enter amount to transfer (or '0' to cancel): ");
         if (read_client_input(client_socket, buffer, MAX_BUFFER) == -1)
-            return; // Disconnected
+            return; 
         if (my_strcmp(buffer, "0") == 0)
-            return; // Back to menu
+            return; 
 
         if (is_valid_number(buffer) && atof(buffer) > 0)
         {
             amount = atof(buffer);
-            break; // Valid input
+            break; 
         }
         else
         {
@@ -317,11 +302,11 @@ void handle_transfer_funds(int client_socket, int senderAccountId)
         }
     }
 
-    // 3. Process the transfer
+    // Process the transfer
     Account sender_account = getAccount(senderAccountId);
     Account receiver_account = getAccountByNum(receiver_acc_num);
 
-    // --- Validation Checks ---
+    // Validation Checks
     if (sender_account.accountId == -1 || receiver_account.accountId == -1)
     {
         write_string(client_socket, "Invalid sender or receiver account number.\n");
@@ -343,43 +328,43 @@ void handle_transfer_funds(int client_socket, int senderAccountId)
         return;
     }
 
-    // --- ATOMIC TRANSACTION (JOURNALING) STARTS HERE ---
+    // ATOMIC TRANSACTION (JOURNALING) STARTS HERE
 
-    // 1. Log the "UNDO" state for the sender
+    // Log the "UNDO" state for the sender
     senderUndo.type = TXN_START;
     senderUndo.accountId = sender_account.accountId;
     senderUndo.oldBalance = sender_account.balance;
     journal_log_entry(senderUndo); // This call writes and fsyncs
 
-    // 2. Log the "UNDO" state for the receiver
+    // Log the "UNDO" state for the receiver
     receiverUndo.type = TXN_START;
     receiverUndo.accountId = receiver_account.accountId;
     receiverUndo.oldBalance = receiver_account.balance;
     journal_log_entry(receiverUndo); // This call writes and fsyncs
 
-    // *** We are now in a crash-safe state ***
+    // We are now in a crash-safe state
     // We have logged our intention. Now we can modify data.
 
-    // 3. Perform the transfer
+    // Perform the transfer
     sender_account.balance -= amount;
     receiver_account.balance += amount;
 
-    int update1_status = updateAccount(sender_account); // This writes and fsyncs
+    int update1_status = updateAccount(sender_account);
 
-    // --- ADD THIS CRASH POINT ---
+    // ADD THIS CRASH POINT
     // write_string(STDOUT_FILENO, "!!! SIMULATING SERVER CRASH !!!\n");
     // kill(getpid(), SIGKILL); // Force-kill the server
     // --- END CRASH POINT ---
 
-    int update2_status = updateAccount(receiver_account); // This writes and fsyncs
+    int update2_status = updateAccount(receiver_account);
 
     if (update1_status == 0 && update2_status == 0)
     {
-        // 4. Success! Log the commit.
+        // Success! Log the commit.
         commitEntry.type = TXN_COMMIT;
-        commitEntry.accountId = 0;      // Not relevant for commit
-        commitEntry.oldBalance = 0;     // Not relevant for commit
-        journal_log_entry(commitEntry); // This writes and fsyncs
+        commitEntry.accountId = 0;     
+        commitEntry.oldBalance = 0;     
+        journal_log_entry(commitEntry); 
 
         // Log normal user-facing transactions
         Transaction txn_out, txn_in;
@@ -404,7 +389,7 @@ void handle_transfer_funds(int client_socket, int senderAccountId)
     }
     else
     {
-        // 5. Failure! Do NOT log commit.
+        // Failure! Do NOT log commit.
         write_string(client_socket, "ERROR: Transfer failed critically. Contact support.\n");
         // The server will roll back the changes on the next restart.
         // We do NOT try to roll back here, as that could also fail.
@@ -435,7 +420,7 @@ void handle_view_transaction_history(int client_socket, int accountId)
     char time_str[25];
 
     Account currentAccount = getAccount(accountId);
-    // FIX: read() Failure
+    // read() Failure
     if (currentAccount.accountId == -1)
     {
         write_string(client_socket, "Error retrieving account details.\n");
@@ -446,14 +431,14 @@ void handle_view_transaction_history(int client_socket, int accountId)
     sprintf(buffer, "\n--- Transaction History (%s) ---\n", currentAccount.accountNumber);
     write_string(client_socket, buffer);
 
-    // ... (sprintf header) ...
+    // sprintf header
     sprintf(buffer, "%-7s | %-20s | %-15s | %-12s | %-15s | %-15s\n", "TXN ID", "DATE & TIME", "TYPE", "RECIVER ACC", "AMOUNT", "BALANCE");
     write_string(client_socket, buffer);
     write_string(client_socket, "------------------------------------------------------------------------------------------\n");
 
     lseek(fd, 0, SEEK_SET);
 
-    // FIX: read() Failure
+    // read() Failure
     while (read(fd, &txn, sizeof(Transaction)) == sizeof(Transaction))
     {
         if (txn.accountId == accountId)
@@ -465,7 +450,7 @@ void handle_view_transaction_history(int client_socket, int accountId)
 
             switch (txn.type)
             {
-            // ... (case DEPOSIT, WITHDRAWAL, TRANSFER_OUT, TRANSFER_IN, default) ...
+            // DEPOSIT, WITHDRAWAL, TRANSFER_OUT, TRANSFER_IN, default 
             case DEPOSIT:
                 strcpy(type_str, "CREDITED");
                 strcpy(other_user_str, "---");
@@ -512,7 +497,7 @@ void handle_apply_loan(int client_socket, int userId)
     if (my_strcmp(buffer, "0") == 0)
         return;
 
-    // FIX: Invalid Data Type
+    // Invalid Data Type
     if (!is_valid_number(buffer))
     {
         write_string(client_socket, "Invalid amount. Must be a positive number.\n");
@@ -527,9 +512,9 @@ void handle_apply_loan(int client_socket, int userId)
 
     write_string(client_socket, "Enter Account Number to deposit to (e.g., SB-10001): ");
     if (read_client_input(client_socket, buffer, MAX_BUFFER) == -1)
-        return; // Orphaned Session
+        return; 
 
-    // FIX: Buffer Overflow / Empty Input
+    // Buffer Overflow / Empty Input
     if (strlen(buffer) == 0 || strlen(buffer) >= 20)
     {
         write_string(client_socket, "Invalid account number format. Aborting.\n");
@@ -555,7 +540,7 @@ void handle_apply_loan(int client_socket, int userId)
     new_loan.status = PENDING;
     new_loan.assignedToEmployeeId = 0;
 
-    // FIX: write() Failure
+    // write() Failure
     if (addLoan(new_loan) == 0)
     {
         write_string(client_socket, "Loan application submitted successfully. Status: PENDING\n");
@@ -586,7 +571,7 @@ void handle_view_loan_status(int client_socket, int userId)
     write_string(client_socket, "\n--- Your Loan Applications ---\n");
     lseek(fd, 0, SEEK_SET);
 
-    // FIX: read() Failure
+    // read() Failure
     while (read(fd, &loan, sizeof(Loan)) == sizeof(Loan))
     {
         if (loan.userId == userId)
@@ -633,13 +618,13 @@ void handle_add_feedback(int client_socket, int userId)
     if (my_strcmp(buffer, "0") == 0)
         return;
 
-    // FIX: Empty Input
+    // Empty Input
     if (strlen(buffer) == 0)
     {
         write_string(client_socket, "Empty feedback cannot be submitted.\n");
         return;
     }
-    // FIX: Buffer Overflow (strncpy handles it, but good to check)
+    // Buffer Overflow (strncpy handles it, but good to check)
     if (strlen(buffer) >= 256)
     {
         write_string(client_socket, "Feedback is too long, it will be truncated.\n");
@@ -649,10 +634,10 @@ void handle_add_feedback(int client_socket, int userId)
     Feedback new_feedback;
     new_feedback.userId = userId;
     strncpy(new_feedback.feedbackText, buffer, 255);
-    new_feedback.feedbackText[255] = '\0'; // Ensure null termination
+    new_feedback.feedbackText[255] = '\0'; 
     new_feedback.isReviewed = 0;
 
-    // FIX: write() Failure
+    // write() Failure
     if (addFeedback(new_feedback) == 0)
     {
         write_string(client_socket, "Feedback submitted successfully. Thank you!\n");
@@ -683,7 +668,7 @@ void handle_view_feedback_status(int client_socket, int userId)
     write_string(client_socket, "\n--- Your Feedback History ---\n");
     lseek(fd, 0, SEEK_SET);
 
-    // FIX: read() Failure
+    // read() Failure
     while (read(fd, &feedback, sizeof(Feedback)) == sizeof(Feedback))
     {
         if (feedback.userId == userId)
@@ -731,7 +716,7 @@ void handle_change_password(int client_socket, int userId)
     if (my_strcmp(buffer, "0") == 0)
         return;
 
-    // FIX: Empty Input / Buffer Overflow
+    // Empty Input / Buffer Overflow
     if (strlen(buffer) == 0)
     {
         write_string(client_socket, "Password cannot be empty.\n");
@@ -752,7 +737,7 @@ void handle_change_password(int client_socket, int userId)
 
     strcpy(user.password, buffer);
 
-    // FIX: write() Failure
+    // write() Failure
     if (updateUser(user) == 0)
     {
         write_string(client_socket, "Password changed successfully.\n");

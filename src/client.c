@@ -1,4 +1,3 @@
-// src/client.c
 #include "common.h"
 
 int main()
@@ -33,30 +32,28 @@ int main()
     int read_size;
     while (1)
     {
-        // Read from server and print to user
         read_size = read(sock, buffer, MAX_BUFFER - 1);
         if (read_size <= 0)
         {
-            break; // Server closed connection
+            break;
         }
         buffer[read_size] = '\0';
         write_string(STDOUT_FILENO, buffer);
 
-        // If the server's message is a prompt, read user input
         if (strstr(buffer, "Enter") != NULL)
         {
             read_size = read(STDIN_FILENO, buffer, MAX_BUFFER - 1);
             if (read_size <= 0)
             {
-                break; // User hit Ctrl+D
+                break;
             }
             buffer[read_size] = '\0';
-            write(sock, buffer, read_size); // Send to server
+            write(sock, buffer, read_size); 
         }
 
         if (strstr(buffer, "Successful!") || strstr(buffer, "Invalid") || strstr(buffer, "deactivated"))
         {
-            break; // End session after login attempt
+            break;
         }
     }
 

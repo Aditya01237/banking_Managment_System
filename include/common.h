@@ -1,8 +1,7 @@
-// include/common.h
 #ifndef COMMON_H
 #define COMMON_H
 
-// --- System Call Headers ---
+// System Call Headers
 #include <stdio.h>      // For perror() only
 #include <stdlib.h>     // For exit(), atoi()
 #include <unistd.h>     // For open, read, write, lseek, close, fork
@@ -16,11 +15,11 @@
 #include <pthread.h>    // For threads
 #include <time.h>
 
-// --- Project-Specific Definitions ---
+// Project-Specific Definitions
 #define PORT 8080
 #define MAX_BUFFER 1024
 
-// --- File Paths ---
+// File Paths
 #define USER_FILE "data/users.dat"
 #define ACCOUNT_FILE "data/accounts.dat"
 #define LOAN_FILE "data/loans.dat"
@@ -28,7 +27,7 @@
 #define TRANSACTION_FILE "data/transactions.dat"
 #define JOURNAL_FILE "data/journal.log"
 
-// --- Data Structures (Unchanged from our last refactor) ---
+// Data Structures (Unchanged from our last refactor) 
 
 typedef enum
 {
@@ -77,7 +76,7 @@ typedef struct
     double amount;
     double newBalance;
     char otherPartyAccountNumber[20];
-    time_t timestamp; // <-- ADD THIS FIELD (stores seconds since epoch)
+    time_t timestamp;
 } Transaction;
 
 typedef enum
@@ -119,8 +118,8 @@ typedef struct
     double oldBalance; // The balance BEFORE the change (for UNDO)
 } JournalEntry;
 
-// --- Generic Utility Function Prototypes ---
-// (These could potentially move to a utils.h/utils.c)
+// Generic Utility Function Prototypes
+// These could potentially move to a utils.h/utils.c
 void write_string(int fd, const char *str);
 int my_strcmp(const char *s1, const char *s2);
 int read_client_input(int client_socket, char *buffer, int size);
@@ -128,4 +127,4 @@ int is_valid_number(const char *str);
 int is_valid_email(const char *str);
 int is_valid_phone(const char *str);
 
-#endif // COMMON_H
+#endif

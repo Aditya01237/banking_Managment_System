@@ -1,9 +1,8 @@
-// src/data_access.c
-#include "data_access.h" // Includes common.h indirectly
+#include "data_access.h" 
 #include <unistd.h>
 #include <fcntl.h>
-#include <stdio.h>  // For perror
-#include <stdlib.h> // For atoi
+#include <stdio.h>  
+#include <stdlib.h> 
 
 // --- Locking Functions ---
 
@@ -39,23 +38,22 @@ int set_record_lock(int fd, int record_num, int record_size, int lock_type)
     return 0;
 }
 
-// --- ID Generation Functions ---
-// (Helper for ID generation)
+
+// Helper for ID generation
 int get_next_id_from_file(const char *filename, size_t record_size)
 {
     int fd = open(filename, O_RDONLY);
     if (fd == -1)
     {
         return 1;
-    } // File doesn't exist or empty
+    } 
 
     set_file_lock(fd, F_RDLCK);
     off_t offset = lseek(fd, -record_size, SEEK_END);
     int next_id = 1;
 
     if (offset != -1)
-    { // File is not empty
-        // We assume the first field of the struct is the ID
+    { 
         int last_id;
         if (read(fd, &last_id, sizeof(int)) == sizeof(int))
         {
@@ -73,8 +71,6 @@ int get_next_account_id() { return get_next_id_from_file(ACCOUNT_FILE, sizeof(Ac
 int get_next_loan_id() { return get_next_id_from_file(LOAN_FILE, sizeof(Loan)); }
 int get_next_feedback_id() { return get_next_id_from_file(FEEDBACK_FILE, sizeof(Feedback)); }
 int get_next_transaction_id() { return get_next_id_from_file(TRANSACTION_FILE, sizeof(Transaction)); }
-
-// --- Record Finding ---
 
 // This function's purpose is to find the record number (position) of a
 // user within the USER_FILE, not to retrieve their data.
@@ -211,9 +207,9 @@ int find_user_by_phone(const char *phone)
     if (fd == -1)
     {
         return -1;
-    } // Cannot open file, assume not found
+    }
 
-    set_file_lock(fd, F_RDLCK); // Lock for reading
+    set_file_lock(fd, F_RDLCK); 
     User user;
     while (read(fd, &user, sizeof(User)) == sizeof(User))
     {
@@ -221,12 +217,12 @@ int find_user_by_phone(const char *phone)
         {
             set_file_lock(fd, F_UNLCK);
             close(fd);
-            return 0; // Found
+            return 0; 
         }
     }
     set_file_lock(fd, F_UNLCK);
     close(fd);
-    return -1; // Not found
+    return -1;
 }
 
 // Finds a user record by email
@@ -237,9 +233,9 @@ int find_user_by_email(const char *email)
     if (fd == -1)
     {
         return -1;
-    } // Cannot open file, assume not found
+    }
 
-    set_file_lock(fd, F_RDLCK); // Lock for reading
+    set_file_lock(fd, F_RDLCK); 
     User user;
     while (read(fd, &user, sizeof(User)) == sizeof(User))
     {
@@ -247,12 +243,12 @@ int find_user_by_email(const char *email)
         {
             set_file_lock(fd, F_UNLCK);
             close(fd);
-            return 0; // Found
+            return 0;
         }
     }
     set_file_lock(fd, F_UNLCK);
     close(fd);
-    return -1; // Not found
+    return -1;
 }
 
 // --- Data Reading Functions ---
@@ -280,13 +276,13 @@ int read_record(void *record_buffer, int record_num, size_t record_size, const c
     set_record_lock(fd, record_num, record_size, F_UNLCK);
     close(fd);
 
-    return (bytes_read == (ssize_t)record_size) ? 0 : -1; // Cast record_size
+    return (bytes_read == (ssize_t)record_size) ? 0 : -1;
 }
 
 User getUser(int userId)
 {
     User user;
-    user.userId = -1; // Indicate failure by default
+    user.userId = -1;
     int record_num = find_user_record(userId);
     if (record_num != -1)
     {
@@ -366,7 +362,7 @@ int getAccountsByOwnerId(int ownerUserId, Account *accountList, int maxAccounts)
             }
             else
             {
-                break; // Reached max capacity
+                break;
             }
         }
     }
@@ -375,7 +371,7 @@ int getAccountsByOwnerId(int ownerUserId, Account *accountList, int maxAccounts)
     return count;
 }
 
-// --- Data Writing/Updating Functions ---
+// Data Writing/Updating Functions
 
 // Helper function to append a record
 int append_record(void *new_record, size_t record_size, const char *filename)
@@ -397,7 +393,7 @@ int append_record(void *new_record, size_t record_size, const char *filename)
     set_file_lock(fd, F_UNLCK);
     close(fd);
 
-    return (bytes_written == (ssize_t)record_size) ? 0 : -1; // Cast record_size
+    return (bytes_written == (ssize_t)record_size) ? 0 : -1; 
 }
 
 // Helper function to update a specific record
@@ -428,7 +424,7 @@ int update_record(void *record_buffer, int record_num, size_t record_size, const
     set_record_lock(fd, record_num, record_size, F_UNLCK);
     close(fd);
 
-    return (bytes_written == (ssize_t)record_size) ? 0 : -1; // Cast record_size
+    return (bytes_written == (ssize_t)record_size) ? 0 : -1;
 }
 
 int addUser(User newUser)
@@ -457,9 +453,8 @@ int addFeedback(Feedback newFeedback)
 
 int addTransaction(Transaction newTransaction)
 {
-    newTransaction.transactionId = get_next_transaction_id(); // Assign next ID
-    newTransaction.timestamp = time(NULL);                    // Capture current time
-    // Use the generic append_record helper function
+    newTransaction.transactionId = get_next_transaction_id(); 
+    newTransaction.timestamp = time(NULL);
     return append_record(&newTransaction, sizeof(Transaction), TRANSACTION_FILE);
 }
 
@@ -469,7 +464,7 @@ int updateUser(User userToUpdate)
     if (record_num == -1)
     {
         return -1;
-    } // User not found
+    }
     return update_record(&userToUpdate, record_num, sizeof(User), USER_FILE);
 }
 
@@ -506,50 +501,41 @@ int updateFeedback(Feedback feedbackToUpdate)
 void generate_new_account_number(char *new_acc_num)
 {
 
-    const char *prefix = "SB"; // Define the prefix
-    int start_num = 10001;     // Starting number
+    const char *prefix = "SB"; 
+    int start_num = 10001;
 
     int fd = open(ACCOUNT_FILE, O_RDONLY);
     if (fd == -1)
     {
-        // File doesn't exist, use starting number
         sprintf(new_acc_num, "%s%d", prefix, start_num);
         return;
     }
 
     set_file_lock(fd, F_RDLCK);
-    int next_num = start_num; // Default if file is empty or read fails
+    int next_num = start_num;
 
     if (lseek(fd, -sizeof(Account), SEEK_END) != -1)
-    { // Check if file has at least one record
+    {
         Account last_account;
         if (read(fd, &last_account, sizeof(Account)) == sizeof(Account))
         {
-            // Extract number assuming prefix is at the beginning
             if (strncmp(last_account.accountNumber, prefix, strlen(prefix)) == 0)
             {
-                int last_num = atoi(last_account.accountNumber + strlen(prefix)); // Get number after prefix
+                int last_num = atoi(last_account.accountNumber + strlen(prefix));
                 next_num = last_num + 1;
             }
             else
             {
-                // Last account number didn't start with expected prefix, use default start_num
                 next_num = start_num;
-                // Optionally log a warning here about unexpected format
             }
         }
-        // If read failed, next_num remains start_num
     }
-    // If lseek failed (file empty), next_num remains start_num
-
     set_file_lock(fd, F_UNLCK);
     close(fd);
-
-    // Format the new account number without the hyphen
     sprintf(new_acc_num, "%s%d", prefix, next_num);
 }
 
-// --- Journaling Functions ---
+// Journaling Functions
 
 // Appends a single journal entry
 void journal_log_entry(JournalEntry entry)
@@ -567,7 +553,7 @@ void journal_log_entry(JournalEntry entry)
 
     if (bytes_written > 0)
     {
-        fsync(fd); // This is the MOST important fsync()!
+        fsync(fd);
     }
     else
     {
@@ -576,7 +562,7 @@ void journal_log_entry(JournalEntry entry)
     close(fd);
 }
 
-// Clears the journal file (after successful recovery or commit)
+// Clears the journal file after successful recovery or commit
 void journal_log_clear()
 {
     // Open with O_TRUNC to wipe the file

@@ -1,40 +1,39 @@
-// include/data_access.h
 #ifndef DATA_ACCESS_H
 #define DATA_ACCESS_H
 
-#include "common.h" // Needs the struct definitions
+#include "common.h"
 
-// --- Locking Functions ---
+// Locking Functions
 int set_file_lock(int fd, int lock_type);
 int set_record_lock(int fd, int record_num, int record_size, int lock_type);
 
-// --- ID Generation ---
+// ID Generation
 int get_next_user_id();
 int get_next_account_id();
 int get_next_loan_id();
 int get_next_feedback_id();
 int get_next_transaction_id();
 
-// --- Record Finding ---
+// Record Finding
 int find_user_record(int userId);
 int find_account_record_by_id(int accountId);
 int find_account_record_by_number(char *acc_num);
 int find_loan_record(int loanId);
 int find_feedback_record(int feedbackId);
 
-// --- Uniqueness Check Functions ---
+// Uniqueness Check Functions
 int find_user_by_phone(const char *phone);
 int find_user_by_email(const char *email);
 
-// --- Data Reading ---
+// Data Reading
 User getUser(int userId);              // Gets a User struct by ID
 Account getAccount(int accountId);     // Gets an Account struct by ID
 Account getAccountByNum(char *accNum); // Gets an Account struct by number
 Loan getLoan(int loanId);
 Feedback getFeedback(int feedbackId);
-int getAccountsByOwnerId(int ownerUserId, Account *accountList, int maxAccounts); // Fills a list of accounts for a user
+int getAccountsByOwnerId(int ownerUserId, Account *accountList, int maxAccounts);
 
-// --- Data Writing/Updating ---
+// Data Writing/Updating 
 int addUser(User newUser); // Returns 0 on success, -1 on error
 int addAccount(Account newAccount);
 int addLoan(Loan newLoan);
@@ -46,11 +45,11 @@ int updateAccount(Account accountToUpdate);
 int updateLoan(Loan loanToUpdate);
 int updateFeedback(Feedback feedbackToUpdate);
 
-// --- Utility ---
+// Utility
 void generate_new_account_number(char *new_acc_num);
 
-// --- Journaling Functions ---
+// Journaling Functions
 void journal_log_entry(JournalEntry entry);
 void journal_log_clear(); // To clear the log after a successful recovery
 
-#endif // DATA_ACCESS_H
+#endif

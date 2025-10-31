@@ -1,11 +1,9 @@
-// src/admin_util.c
 #include "common.h"
 
 int main()
 {
     int fd_user, fd_account;
 
-    // --- Create Files (Truncate them to empty) ---
     fd_user = open(USER_FILE, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (fd_user == -1)
     {
@@ -82,22 +80,20 @@ int main()
 
     close(fd_user);
 
-    // --- Accounts for Customer 2 (1-to-Many) ---
-
     // Account 1 (Savings)
     Account cust_account1;
-    cust_account1.accountId = 1;                    // First account
-    cust_account1.ownerUserId = 2;                  // Belongs to User 2
-    strcpy(cust_account1.accountNumber, "SB10001"); // Just a string, no "type"
+    cust_account1.accountId = 1;                 
+    cust_account1.ownerUserId = 2;                  
+    strcpy(cust_account1.accountNumber, "SB10001"); 
     cust_account1.balance = 5000.00;
     cust_account1.isActive = 1;
     write(fd_account, &cust_account1, sizeof(Account));
 
     // Account 2 (Current)
     Account cust_account2;
-    cust_account2.accountId = 2;                    // Second account
-    cust_account2.ownerUserId = 2;                  // Also belongs to User 2
-    strcpy(cust_account2.accountNumber, "SB10002"); // Just a string
+    cust_account2.accountId = 2;                   
+    cust_account2.ownerUserId = 2;                 
+    strcpy(cust_account2.accountNumber, "SB10002"); 
     cust_account2.balance = 25000.00;
     cust_account2.isActive = 1;
     write(fd_account, &cust_account2, sizeof(Account));

@@ -40,7 +40,7 @@ void employee_menu(int client_socket, User user)
             break;
         case 3:
             handle_modify_user_details(client_socket, 0);
-            break; // 0 = Not admin
+            break;
         case 4:
             handle_view_customer_transactions(client_socket);
             break;
@@ -52,10 +52,10 @@ void employee_menu(int client_socket, User user)
             break;
         case 7:
             handle_view_my_details(client_socket, user);
-            break; // Shared function
+            break; 
         case 8:
             handle_change_password(client_socket, user.userId);
-            break; // Shared function
+            break;
         case 9:
             write_string(client_socket, "Logging out. Goodbye!\n");
             return;
@@ -65,7 +65,6 @@ void employee_menu(int client_socket, User user)
     }
 }
 
-// Shared with Admin, implemented here for now
 void handle_add_user(int client_socket, UserRole role_to_add)
 {
     char buffer[MAX_BUFFER];
@@ -79,9 +78,7 @@ void handle_add_user(int client_socket, UserRole role_to_add)
     if (my_strcmp(buffer, "0") == 0)
         return;
 
-    // --- Get and Validate All User Input (with re-prompt loops) ---
-
-    // 1. Password
+    // Password
     while (1)
     {
         write_string(client_socket, "Enter new user's password: ");
@@ -98,7 +95,7 @@ void handle_add_user(int client_socket, UserRole role_to_add)
         }
     }
 
-    // 2. First Name
+    // First Name
     while (1)
     {
         write_string(client_socket, "Enter user's First Name: ");
@@ -115,7 +112,7 @@ void handle_add_user(int client_socket, UserRole role_to_add)
         }
     }
 
-    // 3. Last Name
+    // Last Name
     while (1)
     {
         write_string(client_socket, "Enter user's Last Name: ");
@@ -132,7 +129,7 @@ void handle_add_user(int client_socket, UserRole role_to_add)
         }
     }
 
-    // 4. Phone
+    // Phone
     while (1)
     {
         write_string(client_socket, "Enter user's Phone (10 digits): ");
@@ -149,7 +146,7 @@ void handle_add_user(int client_socket, UserRole role_to_add)
         }
     }
 
-    // 5. Email
+    // Email
     while (1)
     {
         write_string(client_socket, "Enter user's Email: ");
@@ -166,7 +163,7 @@ void handle_add_user(int client_socket, UserRole role_to_add)
         }
     }
 
-    // 6. Address
+    // Address
     while (1)
     {
         write_string(client_socket, "Enter user's Address: ");
@@ -183,23 +180,24 @@ void handle_add_user(int client_socket, UserRole role_to_add)
         }
     }
 
-    // --- FIX: Prevent Race Condition & Check Uniqueness ---
+    // Prevent Race Condition & Check Uniqueness
     pthread_mutex_lock(&create_user_mutex);
 
     // Uniqueness Check
     if (find_user_by_phone(new_user.phone) == 0)
-    { // 0 means "found"
+    { 
+        // 0 means "found"
         write_string(client_socket, "Error: This phone number is already in use. Aborting.\n");
         pthread_mutex_unlock(&create_user_mutex);
         return;
     }
     if (find_user_by_email(new_user.email) == 0)
-    { // 0 means "found"
+    { 
+        // 0 means "found"
         write_string(client_socket, "Error: This email address is already in use. Aborting.\n");
         pthread_mutex_unlock(&create_user_mutex);
         return;
     }
-    // (Note: We still abort for uniqueness, as that's a security/data integrity failure, not a typo)
 
     new_user.userId = get_next_user_id();
 
@@ -236,7 +234,6 @@ void handle_add_user(int client_socket, UserRole role_to_add)
     }
 
     pthread_mutex_unlock(&create_user_mutex);
-    // --- END FIX ---
 }
 
 void handle_add_new_account(int client_socket)
@@ -265,7 +262,6 @@ void handle_add_new_account(int client_socket)
     }
 
     Account new_account;
-    // accountId set by addAccount
     new_account.ownerUserId = cust_id;
     new_account.balance = 0.0;
     new_account.isActive = 1;
@@ -282,7 +278,6 @@ void handle_add_new_account(int client_socket)
     }
 }
 
-// Shared with Admin, implemented here
 void handle_modify_user_details(int client_socket, int admin_mode)
 {
     char buffer[MAX_BUFFER];
@@ -295,21 +290,19 @@ void handle_modify_user_details(int client_socket, int admin_mode)
 
     int target_user_id = atoi(buffer);
 
-    User user = getUser(target_user_id); // Get user data
+    User user = getUser(target_user_id);
     if (user.userId == -1)
     {
         write_string(client_socket, "User not found.\n");
         return;
     }
 
-    // Security check
     if (!admin_mode && user.role != CUSTOMER)
     {
         write_string(client_socket, "Permission denied. Employees can only modify customers.\n");
         return;
     }
 
-    // Get modifications (same logic as before, asking 'skip')
     write_string(client_socket, "Enter new password (or 'skip'): ");
     read_client_input(client_socket, buffer, MAX_BUFFER);
     if (my_strcmp(buffer, "skip") != 0)
@@ -324,7 +317,6 @@ void handle_modify_user_details(int client_socket, int admin_mode)
         strcpy(user.firstName, buffer);
     }
 
-    // ... (repeat for lastName, phone, email, address) ...
     write_string(client_socket, "Enter new Last Name (or 'skip'): ");
     read_client_input(client_socket, buffer, MAX_BUFFER);
     if (my_strcmp(buffer, "skip") != 0)
@@ -393,7 +385,6 @@ void handle_view_customer_transactions(int client_socket)
     if (my_strcmp(buffer, "0") == 0)
         return;
 
-    // Get account details using Data Access Layer
     Account account = getAccountByNum(buffer);
     if (account.accountId == -1)
     {
@@ -401,13 +392,12 @@ void handle_view_customer_transactions(int client_socket)
         return;
     }
 
-    // Call the shared history function (needs accountId)
     handle_view_transaction_history(client_socket, account.accountId);
 }
 
 void handle_view_assigned_loans(int client_socket, int employeeId)
 {
-    int fd = open(LOAN_FILE, O_RDONLY); // Need direct access for searching
+    int fd = open(LOAN_FILE, O_RDONLY);
     if (fd == -1)
     {
         write_string(client_socket, "No loans found.\n");
@@ -420,7 +410,7 @@ void handle_view_assigned_loans(int client_socket, int employeeId)
     int found = 0;
 
     write_string(client_socket, "\n--- Your Assigned Loans ---\n");
-    lseek(fd, 0, SEEK_SET); // Rewind
+    lseek(fd, 0, SEEK_SET);
     while (read(fd, &loan, sizeof(Loan)) == sizeof(Loan))
     {
         if (loan.assignedToEmployeeId == employeeId && (loan.status == PENDING || loan.status == PROCESSING))
@@ -453,7 +443,7 @@ void handle_process_loan(int client_socket, int employeeId)
 
     int loanId = atoi(buffer);
 
-    Loan loan = getLoan(loanId); // Use Data Access Layer
+    Loan loan = getLoan(loanId);
     if (loan.loanId == -1)
     {
         write_string(client_socket, "Loan ID not found.\n");
@@ -483,7 +473,6 @@ void handle_process_loan(int client_socket, int employeeId)
             if (account.accountId == -1)
             {
                 write_string(client_socket, "Loan approved, but customer account not found!\n");
-                // Should we revert loan status? For now, no.
             }
             else
             {
@@ -506,7 +495,6 @@ void handle_process_loan(int client_socket, int employeeId)
                 else
                 {
                     write_string(client_socket, "Loan approved, but failed to credit account.\n");
-                    // Revert? For now, no.
                 }
             }
         }

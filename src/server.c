@@ -10,13 +10,13 @@
 #include <unistd.h>      // For close
 #include <stdio.h>       // For perror
 
-// --- Session Management Globals ---
+// Session Management Globals
 #define MAX_SESSIONS 100 // Maximum concurrent logged-in users
 int activeUserIds[MAX_SESSIONS];
 int activeUserCount = 0;
 pthread_mutex_t sessionMutex = PTHREAD_MUTEX_INITIALIZER; // Mutex to protect the list
 
-// --- Core Login Function ---
+// Core Login Function
 // (Remains here as it's central authentication logic)
 User check_login(int userId, char *password)
 {
