@@ -17,5 +17,4 @@ void handle_process_loan(int client_socket, int employeeId);
 // handle_view_my_details is shared (defined in customer.h)
 // handle_change_password is shared (defined in customer.h)
 
-
 #endif // EMPLOYEE_H

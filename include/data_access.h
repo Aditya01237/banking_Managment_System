@@ -18,21 +18,21 @@ int get_next_transaction_id();
 // --- Record Finding ---
 int find_user_record(int userId);
 int find_account_record_by_id(int accountId);
-int find_account_record_by_number(char* acc_num);
+int find_account_record_by_number(char *acc_num);
 int find_loan_record(int loanId);
 int find_feedback_record(int feedbackId);
 
 // --- Uniqueness Check Functions ---
-int find_user_by_phone(const char* phone);
-int find_user_by_email(const char* email);
+int find_user_by_phone(const char *phone);
+int find_user_by_email(const char *email);
 
 // --- Data Reading ---
-User getUser(int userId); // Gets a User struct by ID
-Account getAccount(int accountId); // Gets an Account struct by ID
-Account getAccountByNum(char* accNum); // Gets an Account struct by number
+User getUser(int userId);              // Gets a User struct by ID
+Account getAccount(int accountId);     // Gets an Account struct by ID
+Account getAccountByNum(char *accNum); // Gets an Account struct by number
 Loan getLoan(int loanId);
 Feedback getFeedback(int feedbackId);
-int getAccountsByOwnerId(int ownerUserId, Account* accountList, int maxAccounts); // Fills a list of accounts for a user
+int getAccountsByOwnerId(int ownerUserId, Account *accountList, int maxAccounts); // Fills a list of accounts for a user
 
 // --- Data Writing/Updating ---
 int addUser(User newUser); // Returns 0 on success, -1 on error
@@ -47,7 +47,10 @@ int updateLoan(Loan loanToUpdate);
 int updateFeedback(Feedback feedbackToUpdate);
 
 // --- Utility ---
-void generate_new_account_number(char* new_acc_num);
+void generate_new_account_number(char *new_acc_num);
 
+// --- Journaling Functions ---
+void journal_log_entry(JournalEntry entry);
+void journal_log_clear(); // To clear the log after a successful recovery
 
 #endif // DATA_ACCESS_H

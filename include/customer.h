@@ -21,5 +21,4 @@ void handle_view_feedback_status(int client_socket, int userId);
 void handle_view_my_details(int client_socket, User user);
 void handle_change_password(int client_socket, int userId);
 
-
 #endif // CUSTOMER_H

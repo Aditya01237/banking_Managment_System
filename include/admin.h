@@ -14,5 +14,4 @@ void admin_menu(int client_socket, User user);
 // handle_view_my_details is shared (defined in customer.h)
 // handle_change_password is shared (defined in customer.h)
 
-
 #endif // ADMIN_H

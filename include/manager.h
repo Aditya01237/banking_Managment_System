@@ -14,5 +14,4 @@ void handle_review_feedback(int client_socket);
 // handle_view_my_details is shared (defined in customer.h)
 // handle_change_password is shared (defined in customer.h)
 
-
 #endif // MANAGER_H

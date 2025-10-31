@@ -26,27 +26,50 @@
 #define LOAN_FILE "data/loans.dat"
 #define FEEDBACK_FILE "data/feedback.dat"
 #define TRANSACTION_FILE "data/transactions.dat"
+#define JOURNAL_FILE "data/journal.log"
 
 // --- Data Structures (Unchanged from our last refactor) ---
 
-typedef enum {
-    CUSTOMER, EMPLOYEE, MANAGER, ADMINISTRATOR
+typedef enum
+{
+    CUSTOMER,
+    EMPLOYEE,
+    MANAGER,
+    ADMINISTRATOR
 } UserRole;
 
-typedef struct {
-    int userId; char password[50]; UserRole role; int isActive;
-    char firstName[50]; char lastName[50]; char phone[15];
-    char email[100]; char address[256];
+typedef struct
+{
+    int userId;
+    char password[50];
+    UserRole role;
+    int isActive;
+    char firstName[50];
+    char lastName[50];
+    char phone[15];
+    char email[100];
+    char address[256];
 } User;
 
-typedef struct {
-    int accountId; int ownerUserId; char accountNumber[20];
-    double balance; int isActive;
+typedef struct
+{
+    int accountId;
+    int ownerUserId;
+    char accountNumber[20];
+    double balance;
+    int isActive;
 } Account;
 
-typedef enum { DEPOSIT, WITHDRAWAL, TRANSFER_OUT, TRANSFER_IN } TransactionType;
+typedef enum
+{
+    DEPOSIT,
+    WITHDRAWAL,
+    TRANSFER_OUT,
+    TRANSFER_IN
+} TransactionType;
 
-typedef struct {
+typedef struct
+{
     int transactionId;
     int accountId;
     int userId;
@@ -57,25 +80,52 @@ typedef struct {
     time_t timestamp; // <-- ADD THIS FIELD (stores seconds since epoch)
 } Transaction;
 
-typedef enum { PENDING, PROCESSING, APPROVED, REJECTED } LoanStatus;
+typedef enum
+{
+    PENDING,
+    PROCESSING,
+    APPROVED,
+    REJECTED
+} LoanStatus;
 
-typedef struct {
-    int loanId; int userId; int accountIdToDeposit; double amount;
-    LoanStatus status; int assignedToEmployeeId;
+typedef struct
+{
+    int loanId;
+    int userId;
+    int accountIdToDeposit;
+    double amount;
+    LoanStatus status;
+    int assignedToEmployeeId;
 } Loan;
 
-typedef struct {
-    int feedbackId; int userId; char feedbackText[256]; int isReviewed;
+typedef struct
+{
+    int feedbackId;
+    int userId;
+    char feedbackText[256];
+    int isReviewed;
 } Feedback;
+
+typedef enum
+{
+    TXN_START, // Log the "undo" information
+    TXN_COMMIT // Log that the transaction was successful
+} JournalEntryType;
+
+typedef struct
+{
+    JournalEntryType type;
+    int accountId;     // The account ID being changed
+    double oldBalance; // The balance BEFORE the change (for UNDO)
+} JournalEntry;
 
 // --- Generic Utility Function Prototypes ---
 // (These could potentially move to a utils.h/utils.c)
-void write_string(int fd, const char* str);
-int my_strcmp(const char* s1, const char* s2);
-int read_client_input(int client_socket, char* buffer, int size);
-int is_valid_number(const char* str);
-int is_valid_email(const char* str);
-int is_valid_phone(const char* str);
-
+void write_string(int fd, const char *str);
+int my_strcmp(const char *s1, const char *s2);
+int read_client_input(int client_socket, char *buffer, int size);
+int is_valid_number(const char *str);
+int is_valid_email(const char *str);
+int is_valid_phone(const char *str);
 
 #endif // COMMON_H
