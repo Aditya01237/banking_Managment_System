@@ -80,7 +80,7 @@ int main() {
     Account cust_account1;
     cust_account1.accountId = 1; // First account
     cust_account1.ownerUserId = 2; // Belongs to User 2
-    strcpy(cust_account1.accountNumber, "SB-10001"); // Just a string, no "type"
+    strcpy(cust_account1.accountNumber, "SB10001"); // Just a string, no "type"
     cust_account1.balance = 5000.00; 
     cust_account1.isActive = 1;
     write(fd_account, &cust_account1, sizeof(Account));
@@ -89,12 +89,12 @@ int main() {
     Account cust_account2;
     cust_account2.accountId = 2; // Second account
     cust_account2.ownerUserId = 2; // Also belongs to User 2
-    strcpy(cust_account2.accountNumber, "ACC-10002"); // Just a string
+    strcpy(cust_account2.accountNumber, "SB10002"); // Just a string
     cust_account2.balance = 25000.00; 
     cust_account2.isActive = 1;
     write(fd_account, &cust_account2, sizeof(Account));
 
-    write_string(STDOUT_FILENO, "Customer 2 accounts created (SB-10001, ACC-10002)\n");
+    write_string(STDOUT_FILENO, "Customer accounts created (SB10001, SB10002)\n");
     
     close(fd_account);
     
