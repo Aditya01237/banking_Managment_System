@@ -1,0 +1,13 @@
+.DS_Store
+obj/
+server
+client
+admin_util
+tests/test_core
+tests/test_concurrency
+data/*.dat
+data/*.log
+*.dSYM/
+*.gcda
+*.gcno
+*.profraw
