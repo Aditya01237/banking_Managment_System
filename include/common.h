@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
@@ -27,21 +28,13 @@
 #define TRANSACTION_FILE "data/transactions.dat"
 #define JOURNAL_FILE "data/journal.log"
 
-/* Monetary values are stored as integer paise, never floating point. */
 typedef int64_t Money;
 
-typedef enum
-{
-    CUSTOMER,
-    EMPLOYEE,
-    MANAGER,
-    ADMINISTRATOR
-} UserRole;
+typedef enum { CUSTOMER, EMPLOYEE, MANAGER, ADMINISTRATOR } UserRole;
 
 typedef struct
 {
     int userId;
-    /* Stores a libsodium Argon2id encoded hash, never plaintext. */
     char password[PASSWORD_HASH_MAX];
     UserRole role;
     int isActive;
@@ -61,13 +54,7 @@ typedef struct
     int isActive;
 } Account;
 
-typedef enum
-{
-    DEPOSIT,
-    WITHDRAWAL,
-    TRANSFER_OUT,
-    TRANSFER_IN
-} TransactionType;
+typedef enum { DEPOSIT, WITHDRAWAL, TRANSFER_OUT, TRANSFER_IN } TransactionType;
 
 typedef struct
 {
@@ -81,13 +68,7 @@ typedef struct
     time_t timestamp;
 } Transaction;
 
-typedef enum
-{
-    PENDING,
-    PROCESSING,
-    APPROVED,
-    REJECTED
-} LoanStatus;
+typedef enum { PENDING, PROCESSING, APPROVED, REJECTED } LoanStatus;
 
 typedef struct
 {
@@ -107,11 +88,7 @@ typedef struct
     int isReviewed;
 } Feedback;
 
-typedef enum
-{
-    TXN_UNDO,
-    TXN_COMMIT
-} JournalEntryType;
+typedef enum { TXN_UNDO, TXN_COMMIT } JournalEntryType;
 
 typedef struct
 {
@@ -127,12 +104,8 @@ int read_client_input(int client_socket, char *buffer, int size);
 int is_valid_number(const char *str);
 int is_valid_email(const char *str);
 int is_valid_phone(const char *str);
-
-/* Exact money helpers. parse_money("1250.75") -> 125075 paise. */
 int parse_money(const char *str, Money *out);
 void format_money(Money amount, char *buffer, size_t size);
-
-/* Argon2id password helpers backed by libsodium. */
 int hash_password(const char *plain_password, char out_hash[PASSWORD_HASH_MAX]);
 int verify_password(const char *stored_hash, const char *plain_password);
 
