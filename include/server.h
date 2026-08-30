@@ -3,9 +3,8 @@
 
 #include "common.h"
 
-// Core Server Functions
-void *handle_client(void *client_socket_ptr); // Main thread function
-User check_login(int userId, char *password); // Authentication logic
-void run_server_recovery(); // ecovery function
+void *handle_client(void *client_socket_ptr);
+User check_login(int userId, const char *password);
+void run_server_recovery(void);
 
 #endif
