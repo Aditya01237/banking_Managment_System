@@ -1,189 +1,273 @@
-# 🏦 Banking Management System
+# Concurrent Banking Transaction Server
 
-## 📜 Description
+A Linux systems/backend project written in **C** that implements a concurrent TCP banking server with crash-safe fund transfers, record-level persistence, role-based access control, and bounded worker concurrency.
 
-This project simulates the core functionalities of a banking system using C. It focuses on demonstrating fundamental system software concepts, particularly **concurrency**, **process/thread synchronization**, **file management using system calls**, and **socket programming**. The system features role-based access control and ensures data consistency through locking mechanisms.
+This is intentionally **not** a web CRUD application. The project focuses on operating-system and backend concepts: sockets, pthreads, synchronization, file descriptors, record locks, write-ahead logging, recovery, durability, indexing, and secure credential storage.
 
-## ✨ Features
+## Why this project is interesting
 
-* **Role-Based Access Control:**
-    * **Customer:** Manages personal accounts.
-    * **Employee:** Manages customer accounts and processes loans.
-    * **Manager:** Oversees employees, manages account statuses, and reviews feedback.
-    * **Administrator:** Manages all user accounts (customers and employees).
-* **Account Management:**
-    * Customers can have **multiple accounts**.
-    * View balance.
-    * Deposit and withdraw funds.
-    * Transfer funds between accounts (using Account Numbers).
-    * View detailed, timestamped transaction history per account.
-* **Loan System:**
-    * Customers can apply for loans linked to a specific account.
-    * Managers can assign pending loans to employees.
-    * Employees can view assigned loans and approve/reject them.
-    * Approved loans automatically credit the specified customer account.
-* **Feedback System:**
-    * Customers can submit feedback.
-    * Managers can review feedback.
-* **User Management:**
-    * Employees can add new customers and create their first account.
-    * Employees can add additional accounts for existing customers.
-    * Employees/Admins can modify user details (KYC info, password).
-    * Managers/Admins can activate/deactivate users and their associated accounts.
-    * Admins can add new employees/managers and change user roles.
-* **Concurrency & Security:**
-    * **Multithreaded Server:** Handles multiple client connections simultaneously using POSIX threads (`pthread`).
-    * **Session Management:** Prevents multiple logins by the same user ID using a mutex-protected session list.
-    * **File Locking:** Uses `fcntl` for both record-level (for specific accounts/users) and whole-file locking (for searching/appending) to prevent race conditions and ensure data integrity.
-    * **System Calls:** Prioritizes direct system calls (`open`, `read`, `write`, `lseek`, `fcntl`) over standard library functions (`fopen`, `fread`, etc.) for file I/O.
+The server handles real concurrency problems that a simple banking demo normally avoids:
 
-## ⚙️ Technical Requirements Met
+- multiple clients can operate concurrently;
+- two-account transfers acquire locks in deterministic order to avoid deadlock;
+- in-process `pthread` lock stripes complement process-associated `fcntl` locks;
+- balances are stored as integer **paise**, avoiding floating-point money errors;
+- transfers write undo records to a transaction-ID based WAL before modifying account data;
+- `fsync()` is used on critical persistent writes;
+- incomplete transactions are rolled back during server startup;
+- a bounded worker pool provides backpressure instead of creating one thread per connection;
+- account/user hot-path lookups use startup-built in-memory hash indexes;
+- passwords are stored as **Argon2id hashes** using libsodium, never plaintext;
+- CI runs strict compilation, automated tests, AddressSanitizer, and UndefinedBehaviorSanitizer builds.
 
-* **Socket Programming:** Implements a client-server architecture.
-* **System Calls:** Uses system calls for file management, process/thread management, and synchronization.
-* **File Management:** Uses binary files as a database.
-* **File Locking:** Implements both shared (read) and exclusive (write) locks at file and record levels.
-* **Multithreading:** Server uses `pthread_create` for concurrency.
-* **Synchronization:** Uses `pthread_mutex_t` for session management and `fcntl` locks for file data consistency.
+## Architecture
 
-## 🗃️ Data Integrity & ACID Properties
-
-This project implements features to ensure data integrity, modeled after the **ACID** properties.
-
-* **A - Atomicity (All or Nothing):**
-    * Implemented for critical transactions (like `handle_transfer_funds`) using a **Write-Ahead Log (WAL) / Journal** (`journal.log`).
-    * **Flow:**
-        1.  `[TXN_START]` entries (containing "undo" information) are written to the journal and forced to disk with `fsync()`.
-        2.  The `accounts.dat` file is modified.
-        3.  A `[TXN_COMMIT]` entry is written to the journal and `fsync()`ed.
-    * **Recovery:** On startup, `run_server_recovery()` reads the journal. If it finds `_START` entries without a `_COMMIT` (indicating a crash), it uses the "undo" info to **roll back** the changes, ensuring the database is always in a consistent state.
-
-* **C - Consistency:**
-    * Enforced by **application-level logic** (e.g., `is_valid_number`, checking for sufficient funds) and guaranteed by **Atomicity**.
-
-* **I - Isolation:**
-    * Implemented using the **`fcntl`** system call for file locking.
-    * **Record-Level Locking:** `updateAccount` and other modification functions lock *only* the specific record (byte range) being changed. This allows two users to modify *different* accounts at the same time.
-    * **File-Level Locking:** A shared read lock (`F_RDLCK`) is used when searching files (like `find_user_record`) to allow concurrent reads but prevent a concurrent write.
-
-* **D - Durability:**
-    * Implemented using the **`fsync()`** system call.
-    * After every critical `write()` to the data files or journal, `fsync()` is called to force the OS to flush the data from the memory cache to the physical disk. This ensures that completed transactions are permanent.
-
-## 🛡️ Robust Error Handling
-
-The system is hardened against common errors and bad user input.
-
-* **Input Validation:** All user input is validated at the source.
-    * **Data Type:** `atof()` is protected by `is_valid_number()` to prevent bugs like `"100abc"`.
-    * **Format:** `is_valid_phone()` (10 digits) and `is_valid_email()` (contains `@` and `.`) are used.
-    * **Buffer Overflow:** `strlen` is checked against struct field sizes (e.g., password < 50) before `strcpy`.
-    * **Empty Input:** `strlen(buffer) == 0` is checked to prevent empty names or passwords.
-* **User Experience:**
-    * **Re-prompting:** Invalid input (e.g., bad phone number) re-prompts the user for *just that field* instead of aborting the entire operation.
-    * **Cancel Function:** Users can type `"0"` at (almost) any prompt to safely return to the previous menu.
-* **Concurrency Safety:**
-    * **Race Conditions:** User/Account creation is protected by a dedicated mutex (`create_user_mutex`) to prevent two users from being created with the same ID.
-    * **Uniqueness:** The system checks for duplicate phone numbers or emails before creating a new user.
-    * **Orphaned Sessions:** The server robustly handles unexpected client disconnects (`Ctrl+C`) by detecting the `read()` failure, which causes the thread to exit and trigger the session cleanup logic.
-* **System Call Robustness:**
-    * The return values of `read()` and `write()` are checked to prevent data corruption from partial writes (e.g., disk full) or the use of garbage data from failed reads.
-
-## 📁 Project Structure
-
+```text
+                         TCP clients
+                    ┌────────┼────────┐
+                    │        │        │
+                    ▼        ▼        ▼
+              ┌──────────────────────────┐
+              │      Listening Socket    │
+              └────────────┬─────────────┘
+                           ▼
+                 ┌──────────────────┐
+                 │  Bounded Socket  │
+                 │      Queue       │
+                 └────────┬─────────┘
+                          ▼
+              ┌──────────────────────────┐
+              │  Fixed pthread workers   │
+              │ authentication/sessions  │
+              └────────────┬─────────────┘
+                           ▼
+              ┌──────────────────────────┐
+              │   Transaction / Role     │
+              │       Operations         │
+              └───────┬─────────┬────────┘
+                      │         │
+                 lock stripes   │ transaction-ID WAL
+                      │         │ + fsync
+                      ▼         ▼
+              ┌──────────────────────────┐
+              │ Binary persistent files  │
+              │ users/accounts/loans/... │
+              └────────────┬─────────────┘
+                           ▲
+                    startup recovery
 ```
-BankingManagementSystem/
-├── include/              # Header files (.h) defining interfaces and structures
-│   ├── admin.h
-│   ├── common.h
-│   ├── customer.h
-│   ├── data_access.h
-│   ├── employee.h
-│   ├── manager.h
-│   └── server.h
-├── src/                  # Source files implementing the logic
-│   ├── admin.c
-│   ├── admin_util.c      # Utility to create initial users/accounts
-│   ├── client.c          # Client program
-│   ├── common_utils.c    # Generic helper functions
-│   ├── customer.c
-│   ├── data_access.c     # Data storage and retrieval logic
-│   ├── employee.c
-│   ├── manager.c
-│   └── server.c          # Main server logic (connection handling, threads)
-├── data/                 # Data files
-├── obj/                  # Compiled object files 
-└── Makefile              # Optional: For automating compilation
 
-```      
+## Core concurrency model
 
-## 🧩 Modules
+### Bounded worker pool
 
-The project is structured into logical modules:
+The listening thread accepts sockets and pushes them into a bounded producer/consumer queue. A fixed group of worker threads waits on a condition variable and processes connections.
 
-* **`common`:** Core data structures, enums, constants, and basic utilities.
-* **`data_access`:** Handles all direct file I/O, locking, and data retrieval/storage operations.
-* **`customer`:** Implements customer-specific menus and actions.
-* **`employee`:** Implements employee-specific menus and actions.
-* **`manager`:** Implements manager-specific menus and actions.
-* **`admin`:** Implements admin-specific menus and actions.
-* **`server`:** Handles client connections, threading, login, session management, and dispatches requests to the appropriate role module.
-* **`client`:** The user-facing program to connect to the server.
-* **`admin_util`:** A command-line tool to initialize the database files and create default users.
+This avoids unbounded thread creation and gives the server a simple form of backpressure when the queue is full.
 
-## 🚀 How to Compile and Run
+### Account isolation
 
-### 1. Compile
-You must compile all the modules and link them together.
+`fcntl` locks are useful for coordinating record access across processes, but traditional POSIX record locks are process-associated. Threads inside the same server therefore also use hashed `pthread_mutex_t` account lock stripes.
 
-1.  **Open Terminal:** Navigate to the `BankingManagementSystem` root directory.
-2.  **Create Directories:**
-    ```bash
-    mkdir -p obj data
-    ```
-3.  **Compile Object Files:**
-    ```bash
-    gcc -Iinclude -Wall -Wextra -g -c src/common_utils.c -o obj/common_utils.o
-    gcc -Iinclude -Wall -Wextra -g -c src/data_access.c -o obj/data_access.o
-    gcc -Iinclude -Wall -Wextra -g -c src/customer.c -o obj/customer.o
-    gcc -Iinclude -Wall -Wextra -g -c src/employee.c -o obj/employee.o
-    gcc -Iinclude -Wall -Wextra -g -c src/manager.c -o obj/manager.o
-    gcc -Iinclude -Wall -Wextra -g -c src/admin.c -o obj/admin.o
-    gcc -Iinclude -Wall -Wextra -g -c src/server.c -o obj/server.o
-    ```
-4.  **Link Server Executable:**
-    ```bash
-    gcc obj/*.o -o server -lpthread
-    ```
-5.  **Compile Client Executable:**
-    ```bash
-    gcc -Iinclude -Wall -Wextra -g src/client.c obj/common_utils.o -o client
-    ```
-6.  **Compile Admin Utility Executable:**
-    ```bash
-    gcc -Iinclude -Wall -Wextra -g src/admin_util.c obj/data_access.o obj/common_utils.o -o admin_util
-    ```
+For a transfer from account `A` to `B`, the server:
 
-### 2. Run
-You will need at least two terminals.
+1. determines both account records;
+2. acquires the two in-process account locks in deterministic order;
+3. acquires both persistent record locks in deterministic account-ID order;
+4. rereads both records while the transaction locks are held;
+5. validates account state and sufficient funds;
+6. writes WAL undo entries and `fsync()`s them;
+7. debits and credits the two account records;
+8. writes a commit record and `fsync()`s it;
+9. releases record and thread locks.
 
-1.  **Initialize Data (Run Once):**
-    *First, clean any old data (if necessary) and run the admin utility to create default users.*
-    ```bash
-    rm -f data/*.dat data/*.log
-    ./admin_util
-    ```
+Deterministic ordering prevents the classic `A -> B` / `B -> A` deadlock cycle.
 
-2.  **Terminal 1: Start the Server**
-    ```bash
-    ./server
-    ```
-    *(The server will start, check the journal, and begin listening).*
+## Crash recovery / Write-Ahead Log
 
-3.  **Terminal 2 (and 3, 4...): Run the Client**
-    ```bash
-    ./client
-    ```
-    *(Follow the prompts to log in and use the system).*
+Each transfer receives a unique transaction ID. Before account records are changed, the journal records the previous balances:
 
+```text
+TX 91231 | UNDO | account 15 | old balance 500000
+TX 91231 | UNDO | account 44 | old balance 210000
+TX 91231 | COMMIT
+```
 
+Journal writes are forced to durable storage with `fsync()` before the account update proceeds.
+
+At startup the recovery pass groups journal entries by transaction ID. Transactions with a commit record are left intact. Transactions containing undo records but no commit are restored to their previous balances.
+
+For fault-injection testing, the environment variable below deliberately kills the server after the sender debit has reached disk:
+
+```bash
+BANK_CRASH_AFTER_DEBIT=1 ./server
+```
+
+Restarting the server exercises WAL recovery.
+
+## Exact monetary representation
+
+Money is represented using signed 64-bit integer paise:
+
+```c
+typedef int64_t Money;
+```
+
+So:
+
+```text
+₹1250.75 -> 125075
+₹0.10    -> 10
+```
+
+This avoids binary floating-point rounding problems in account balances and loan amounts.
+
+## Authentication
+
+Passwords are never persisted as plaintext. `crypto_pwhash_str()` from libsodium stores an encoded Argon2id password hash containing its parameters and salt. Login uses `crypto_pwhash_str_verify()`.
+
+## In-memory indexes
+
+At startup, the data layer scans persistent user/account files and builds open-addressed hash indexes for:
+
+```text
+user ID        -> record number
+account ID     -> record number
+account number -> record number
+```
+
+This removes repeated full-file scans from common authentication and account lookup paths, giving expected constant-time index lookup before direct record access.
+
+## Features
+
+- Customer, Employee, Manager, and Administrator roles
+- Multiple accounts per customer
+- Deposit and withdrawal
+- Atomic account-to-account transfer
+- Transaction history
+- Loan application, assignment, approval, rejection, and account credit
+- Feedback workflow
+- User activation/deactivation
+- Single-active-session protection
+- Persistent binary-file storage using `open/read/write/lseek`
+- Shared/exclusive `fcntl` locks
+- `pthread` synchronization
+- TCP client/server communication
+
+## Build
+
+### Dependencies
+
+Ubuntu/Debian:
+
+```bash
+sudo apt-get install build-essential libsodium-dev
+```
+
+macOS with Homebrew:
+
+```bash
+brew install libsodium
+```
+
+### Compile
+
+```bash
+make
+```
+
+### Initialize local runtime data
+
+```bash
+./admin_util
+```
+
+Seed users:
+
+```text
+Admin     1 / admin123
+Customer  2 / customer123
+Employee  3 / employee123
+Manager   4 / manager123
+```
+
+These credentials are only seed inputs; the persisted user records contain Argon2id hashes.
+
+### Run
+
+Terminal 1:
+
+```bash
+./server
+```
+
+Terminal 2:
+
+```bash
+./client
+```
+
+## Tests
+
+Run the automated suite:
+
+```bash
+make test
+```
+
+The current suite checks:
+
+- exact decimal-to-paise conversion;
+- rejection of invalid monetary input;
+- Argon2id hash/verify behavior;
+- indexed user/account lookups;
+- seeded balance correctness;
+- concurrent bidirectional transfers across 16 threads;
+- total-balance conservation and non-negative balance invariants.
+
+Build with sanitizers:
+
+```bash
+make sanitize
+```
+
+GitHub Actions performs the build, tests, and sanitizer build on pushes and pull requests.
+
+## Repository layout
+
+```text
+include/                  public module interfaces
+src/
+  server.c                socket listener, worker pool, sessions, recovery
+  data_access.c           persistence, indexes, locks, WAL helpers
+  customer.c              customer and transaction flows
+  employee.c              customer/loan operations
+  manager.c               loan assignment and feedback/status flows
+  admin.c                 administrator menu
+  client.c                terminal TCP client
+  common_utils.c          input, money, password helpers
+  admin_util.c            seed-data generator
+tests/
+  test_core.c
+  test_concurrency.c
+.github/workflows/ci.yml
+Makefile
+```
+
+Runtime `.dat` files, logs, executables, object files, and platform metadata are ignored rather than committed.
+
+## Interview discussion topics
+
+This project is designed to support concrete systems discussions around:
+
+- why `fcntl` locking alone is insufficient for sibling pthreads;
+- race conditions and lost updates;
+- deterministic lock ordering and deadlock prevention;
+- WAL ordering and crash consistency;
+- `fsync()` and durability;
+- fixed thread pools vs thread-per-connection servers;
+- producer/consumer queues and condition variables;
+- integer vs floating-point money representation;
+- password hashing vs encryption;
+- persistent-file scans vs in-memory indexes;
+- fault injection and invariant-based concurrency testing.
