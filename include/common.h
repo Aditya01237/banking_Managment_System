@@ -1,25 +1,25 @@
 #ifndef COMMON_H
 #define COMMON_H
 
-// System Call Headers
-#include <stdio.h>      // For perror() only
-#include <stdlib.h>     // For exit(), atoi()
-#include <unistd.h>     // For open, read, write, lseek, close, fork
-#include <fcntl.h>      // For fcntl() (locking) and file flags
-#include <string.h>     // For strcmp, strcpy, memset
-#include <sys/socket.h> // For socket programming
-#include <netinet/in.h> // For sockaddr_in
-#include <arpa/inet.h>  // For inet_addr, inet_pton
-#include <errno.h>      // For errno
-#include <sys/types.h>  // For lseek
-#include <pthread.h>    // For threads
+#include <arpa/inet.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <netinet/in.h>
+#include <pthread.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <sys/types.h>
 #include <time.h>
+#include <unistd.h>
 
-// Project-Specific Definitions
 #define PORT 8080
 #define MAX_BUFFER 1024
+#define PASSWORD_HASH_MAX 128
 
-// File Paths
 #define USER_FILE "data/users.dat"
 #define ACCOUNT_FILE "data/accounts.dat"
 #define LOAN_FILE "data/loans.dat"
@@ -27,7 +27,8 @@
 #define TRANSACTION_FILE "data/transactions.dat"
 #define JOURNAL_FILE "data/journal.log"
 
-// Data Structures (Unchanged from our last refactor) 
+/* Monetary values are stored as integer paise, never floating point. */
+typedef int64_t Money;
 
 typedef enum
 {
@@ -40,7 +41,8 @@ typedef enum
 typedef struct
 {
     int userId;
-    char password[50];
+    /* Stores a libsodium Argon2id encoded hash, never plaintext. */
+    char password[PASSWORD_HASH_MAX];
     UserRole role;
     int isActive;
     char firstName[50];
@@ -55,7 +57,7 @@ typedef struct
     int accountId;
     int ownerUserId;
     char accountNumber[20];
-    double balance;
+    Money balance;
     int isActive;
 } Account;
 
@@ -73,8 +75,8 @@ typedef struct
     int accountId;
     int userId;
     TransactionType type;
-    double amount;
-    double newBalance;
+    Money amount;
+    Money newBalance;
     char otherPartyAccountNumber[20];
     time_t timestamp;
 } Transaction;
@@ -92,7 +94,7 @@ typedef struct
     int loanId;
     int userId;
     int accountIdToDeposit;
-    double amount;
+    Money amount;
     LoanStatus status;
     int assignedToEmployeeId;
 } Loan;
@@ -107,24 +109,31 @@ typedef struct
 
 typedef enum
 {
-    TXN_START, // Log the "undo" information
-    TXN_COMMIT // Log that the transaction was successful
+    TXN_UNDO,
+    TXN_COMMIT
 } JournalEntryType;
 
 typedef struct
 {
+    uint64_t transactionId;
     JournalEntryType type;
-    int accountId;     // The account ID being changed
-    double oldBalance; // The balance BEFORE the change (for UNDO)
+    int accountId;
+    Money oldBalance;
 } JournalEntry;
 
-// Generic Utility Function Prototypes
-// These could potentially move to a utils.h/utils.c
 void write_string(int fd, const char *str);
 int my_strcmp(const char *s1, const char *s2);
 int read_client_input(int client_socket, char *buffer, int size);
 int is_valid_number(const char *str);
 int is_valid_email(const char *str);
 int is_valid_phone(const char *str);
+
+/* Exact money helpers. parse_money("1250.75") -> 125075 paise. */
+int parse_money(const char *str, Money *out);
+void format_money(Money amount, char *buffer, size_t size);
+
+/* Argon2id password helpers backed by libsodium. */
+int hash_password(const char *plain_password, char out_hash[PASSWORD_HASH_MAX]);
+int verify_password(const char *stored_hash, const char *plain_password);
 
 #endif
