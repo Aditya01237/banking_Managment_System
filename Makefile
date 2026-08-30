@@ -1,87 +1,53 @@
-# --- Compiler and Flags ---
-CC = gcc
-# CFLAGS: Compiler flags
-# -Iinclude: Look in the 'include' folder for header files (.h)
-# -Wall -Wextra: Show all recommended warnings
-# -g: Include debugging information
-CFLAGS = -Iinclude -Wall -Wextra -g
-# LDFLAGS: Linker flags
-# -lpthread: Link the POSIX Threads library (for the server)
-LDFLAGS_SERVER = -lpthread
+CC ?= gcc
+CFLAGS ?= -Iinclude -std=c11 -Wall -Wextra -Wpedantic -g -D_XOPEN_SOURCE=700
+LDLIBS = -lpthread -lsodium
 
-# --- Directories ---
 SRC_DIR = src
 OBJ_DIR = obj
+TEST_DIR = tests
 
-# --- Executable Targets ---
-TARGET_SERVER = server
-TARGET_CLIENT = client
-TARGET_ADMIN = admin_util
-
-# --- Object File Lists ---
-# Find all .c files in the src directory
-SRCS = $(wildcard $(SRC_DIR)/*.c)
-
-# List all .o (object) files that will be created in the obj directory
-# This maps src/server.c to obj/server.o, src/customer.c to obj/customer.o, etc.
-OBJS = $(patsubst $(SRC_DIR)/%.c, $(OBJ_DIR)/%.o, $(SRCS))
-
-# Specific object files needed for each executable
-# $(OBJ_DIR)/common_utils.o
-COMMON_OBJS = $(OBJ_DIR)/common_utils.o
-# $(OBJ_DIR)/data_access.o
-DATA_OBJS = $(OBJ_DIR)/data_access.o
-# $(OBJ_DIR)/customer.o $(OBJ_DIR)/employee.o $(OBJ_DIR)/manager.o $(OBJ_DIR)/admin.o
+COMMON_OBJ = $(OBJ_DIR)/common_utils.o
+DATA_OBJ = $(OBJ_DIR)/data_access.o
 ROLE_OBJS = $(OBJ_DIR)/customer.o $(OBJ_DIR)/employee.o $(OBJ_DIR)/manager.o $(OBJ_DIR)/admin.o
+SERVER_OBJS = $(OBJ_DIR)/server.o $(COMMON_OBJ) $(DATA_OBJ) $(ROLE_OBJS)
+CLIENT_OBJS = $(OBJ_DIR)/client.o $(COMMON_OBJ)
+ADMIN_OBJS = $(OBJ_DIR)/admin_util.o $(COMMON_OBJ) $(DATA_OBJ)
 
-# The server needs (almost) everything
-SERVER_OBJS = $(OBJ_DIR)/server.o $(COMMON_OBJS) $(DATA_OBJS) $(ROLE_OBJS)
-# The client is simple
-CLIENT_OBJS = $(OBJ_DIR)/client.o $(COMMON_OBJS)
-# The admin util needs data access and common utils
-ADMIN_OBJS = $(OBJ_DIR)/admin_util.o $(COMMON_OBJS) $(DATA_OBJS)
+.PHONY: all clean sanitize test
+all: server client admin_util
 
-# --- Build Rules ---
+server: $(SERVER_OBJS)
+	$(CC) $(CFLAGS) $^ -o $@ $(LDLIBS)
 
-# The 'all' rule is the default. Typing 'make' will run this.
-# It depends on our three executable files.
-.PHONY: all
-all: $(TARGET_SERVER) $(TARGET_CLIENT) $(TARGET_ADMIN)
+client: $(CLIENT_OBJS)
+	$(CC) $(CFLAGS) $^ -o $@ $(LDLIBS)
 
-# Rule to link the server
-$(TARGET_SERVER): $(SERVER_OBJS)
-	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS_SERVER)
-	@echo "Server build complete."
+admin_util: $(ADMIN_OBJS)
+	$(CC) $(CFLAGS) $^ -o $@ $(LDLIBS)
 
-# Rule to link the client
-$(TARGET_CLIENT): $(CLIENT_OBJS)
-	$(CC) $(CFLAGS) $^ -o $@
-	@echo "Client build complete."
-
-# Rule to link the admin utility
-$(TARGET_ADMIN): $(ADMIN_OBJS)
-	$(CC) $(CFLAGS) $^ -o $@
-	@echo "Admin utility build complete."
-
-# Pattern rule: How to build any .o file from its .c file
-# $<: The first dependency (the .c file)
-# $@: The target (the .o file)
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-# Rule to create the 'obj' directory if it doesn't exist
 $(OBJ_DIR):
-	@mkdir -p $(OBJ_DIR)
+	mkdir -p $(OBJ_DIR)
 
-# Rule to create the 'data' directory (used by admin_util)
-# We can make 'admin_util' depend on this.
-$(TARGET_ADMIN): | data
-data:
-	@mkdir -p data
+sanitize:
+	$(MAKE) clean
+	$(MAKE) CFLAGS="$(CFLAGS) -O1 -fno-omit-frame-pointer -fsanitize=address,undefined" \
+	        LDLIBS="$(LDLIBS) -fsanitize=address,undefined"
 
-# --- Cleanup Rule ---
-.PHONY: clean
+$(TEST_DIR)/test_core: $(TEST_DIR)/test_core.c $(SRC_DIR)/common_utils.c $(SRC_DIR)/data_access.c
+	$(CC) $(CFLAGS) $^ -o $@ $(LDLIBS)
+
+$(TEST_DIR)/test_concurrency: $(TEST_DIR)/test_concurrency.c $(SRC_DIR)/common_utils.c $(SRC_DIR)/data_access.c
+	$(CC) $(CFLAGS) $^ -o $@ $(LDLIBS)
+
+test: all $(TEST_DIR)/test_core $(TEST_DIR)/test_concurrency
+	./admin_util >/dev/null
+	./$(TEST_DIR)/test_core
+	./admin_util >/dev/null
+	./$(TEST_DIR)/test_concurrency
+
 clean:
-	@rm -rf $(OBJ_DIR) $(TARGET_SERVER) $(TARGET_CLIENT) $(TARGET_ADMIN)
-	@rm -f data/*.dat data/*.log
-	@echo "Cleanup complete. Removed all build artifacts and data files."
+	rm -rf $(OBJ_DIR) server client admin_util $(TEST_DIR)/test_core $(TEST_DIR)/test_concurrency
+	rm -f data/*.dat data/*.log

@@ -1,361 +1,187 @@
-#include "manager.h"     // Function declarations for manager module
-#include "customer.h"    // For shared handle_view_my_details, handle_change_password
-#include "data_access.h" // For data access functions
-#include "common.h"      // For structs, enums, read_client_input, write_string
-#include <stdio.h>       // For sprintf
-#include <stdlib.h>      // For atoi
-#include <string.h>      // For strlen, my_strcmp
-#include <errno.h>       // For errno
-#include <unistd.h>      // For lseek, close
+#include "manager.h"
+#include "customer.h"
+#include "data_access.h"
 
-// Manager Menu
 void manager_menu(int client_socket, User user)
 {
     char buffer[MAX_BUFFER];
     while (1)
     {
-        sprintf(buffer, "\n--- Manager Menu (User: %s %s) ---\n", user.firstName, user.lastName);
+        snprintf(buffer, sizeof(buffer), "\n--- Manager Menu (%s %s) ---\n", user.firstName, user.lastName);
         write_string(client_socket, buffer);
-        write_string(client_socket, "1. Activate/Deactivate Customer & Accounts\n");
-        write_string(client_socket, "2. Assign Loan to Employee\n");
-        write_string(client_socket, "3. Review Customer Feedback\n");
-        write_string(client_socket, "4. View My Personal Details\n");
-        write_string(client_socket, "5. Change My Password\n");
-        write_string(client_socket, "6. Logout\n");
-        write_string(client_socket, "Enter your choice: ");
-
-        // Check for disconnect
-        if (read_client_input(client_socket, buffer, MAX_BUFFER) == -1)
+        write_string(client_socket,
+                     "1. Activate/Deactivate Customer & Accounts\n2. Assign Loan\n3. Review Feedback\n"
+                     "4. View My Details\n5. Change Password\n6. Logout\nChoice: ");
+        if (read_client_input(client_socket, buffer, sizeof(buffer)) == -1)
             return;
-
-        int choice = atoi(buffer);
-        switch (choice)
+        switch (atoi(buffer))
         {
-        case 1:
-            handle_set_account_status(client_socket, 0);
-            break;
-        case 2:
-            handle_assign_loan(client_socket);
-            break;
-        case 3:
-            handle_review_feedback(client_socket);
-            break;
-        case 4:
-            handle_view_my_details(client_socket, user);
-            break;
-        case 5:
-            handle_change_password(client_socket, user.userId);
-            break;
-        case 6:
-            write_string(client_socket, "Logging out. Goodbye!\n");
-            return;
-        default:
-            write_string(client_socket, "Invalid choice.\n");
+        case 1: handle_set_account_status(client_socket, 0); break;
+        case 2: handle_assign_loan(client_socket); break;
+        case 3: handle_review_feedback(client_socket); break;
+        case 4: handle_view_my_details(client_socket, user); break;
+        case 5: handle_change_password(client_socket, user.userId); break;
+        case 6: return;
+        default: write_string(client_socket, "Invalid choice.\n");
         }
     }
 }
 
-// Shared with Admin implemented here
 void handle_set_account_status(int client_socket, int admin_mode)
 {
     char buffer[MAX_BUFFER];
-
-    // Get User ID
-    write_string(client_socket, "Enter User ID to modify status (or '0' to cancel): ");
-    if (read_client_input(client_socket, buffer, MAX_BUFFER) == -1)
-        return; // Disconnect
-    if (my_strcmp(buffer, "0") == 0)
-        return; // Back to menu
-    int target_user_id = atoi(buffer);
-
-    // Get Status
-    write_string(client_socket, "Enter status (1=Active, 0=Deactivated) (or '0' to cancel): ");
-    if (read_client_input(client_socket, buffer, MAX_BUFFER) == -1)
-        return; // Disconnect
-    if (my_strcmp(buffer, "0") == 0)
-        return; // Back to menu
-
-    int new_status = atoi(buffer);
-    if (new_status != 0 && new_status != 1)
+    write_string(client_socket, "User ID: ");
+    if (read_client_input(client_socket, buffer, sizeof(buffer)) == -1)
+        return;
+    int userId = atoi(buffer);
+    User user = getUser(userId);
+    if (user.userId < 0 || (!admin_mode && user.role != CUSTOMER))
     {
-        write_string(client_socket, "Invalid status. Use 1 for Active, 0 for Deactivated.\n");
+        write_string(client_socket, "User not found or permission denied.\n");
         return;
     }
 
-    // Update User Status
-    User user = getUser(target_user_id);
-    if (user.userId == -1)
+    write_string(client_socket, "Status 1=Active, 0=Inactive: ");
+    if (read_client_input(client_socket, buffer, sizeof(buffer)) == -1)
+        return;
+    int status = atoi(buffer);
+    if (status != 0 && status != 1)
     {
-        write_string(client_socket, "User not found.\n");
+        write_string(client_socket, "Invalid status.\n");
         return;
     }
 
-    if (!admin_mode && user.role != CUSTOMER)
-    {
-        write_string(client_socket, "Permission denied. Managers can only modify customers.\n");
-        return;
-    }
-
-    user.isActive = new_status;
+    user.isActive = status;
     if (updateUser(user) != 0)
     {
-        write_string(client_socket, "Error updating user status record.\n");
-    }
-    else
-    {
-        write_string(client_socket, "User status updated successfully.\n");
-    }
-
-    // Update ALL accounts owned by this user
-    int fd_acct = open(ACCOUNT_FILE, O_RDWR);
-    if (fd_acct == -1)
-    {
-        write_string(client_socket, "Could not open account file to update account statuses.\n");
+        write_string(client_socket, "Could not update user.\n");
         return;
     }
 
-    if (set_file_lock(fd_acct, F_WRLCK) == -1)
+    int fd = open(ACCOUNT_FILE, O_RDWR);
+    if (fd < 0)
     {
-        write_string(client_socket, "Could not lock account file.\n");
-        close(fd_acct);
+        write_string(client_socket, "User updated; account store unavailable.\n");
         return;
     }
-
+    set_file_lock(fd, F_WRLCK);
     Account account;
-    int record_num = 0;
-    int update_count = 0;
-    int error_count = 0;
-    lseek(fd_acct, 0, SEEK_SET); // Rewind to start
-
-    // Loop through all account records
-    while (read(fd_acct, &account, sizeof(Account)) == sizeof(Account))
+    int record = 0, updated = 0;
+    while (read(fd, &account, sizeof(account)) == (ssize_t)sizeof(account))
     {
-        if (account.ownerUserId == target_user_id)
+        if (account.ownerUserId == userId && account.isActive != status)
         {
-            // Found an account belonging to the user
-            if (account.isActive != new_status)
-            { 
-                // Only update if needed
-                account.isActive = new_status;
-                // Seek back to the beginning of this record to overwrite it
-                if (lseek(fd_acct, record_num * sizeof(Account), SEEK_SET) == -1)
-                {
-                    perror("lseek back failed");
-                    error_count++;
-                }
-                else
-                {
-                    // Write the updated record
-                    if (write(fd_acct, &account, sizeof(Account)) != sizeof(Account))
-                    {
-                        perror("write update failed");
-                        error_count++;
-                    }
-                    else
-                    {
-                        // Force write to disk for durability
-                        fsync(fd_acct);
-                        update_count++;
-                    }
-                }
-                // Seek forward to the start of the *next* record to continue reading
-                if (lseek(fd_acct, (record_num + 1) * sizeof(Account), SEEK_SET) == -1 && errno != 0)
-                {
-                    perror("lseek forward failed");
-                }
-            }
+            account.isActive = status;
+            if (lseek(fd, (off_t)record * sizeof(account), SEEK_SET) >= 0 &&
+                write(fd, &account, sizeof(account)) == (ssize_t)sizeof(account))
+                updated++;
+            lseek(fd, (off_t)(record + 1) * sizeof(account), SEEK_SET);
         }
-        record_num++;
-    } // End while loop reading accounts
+        record++;
+    }
+    fsync(fd);
+    set_file_lock(fd, F_UNLCK);
+    close(fd);
 
-    set_file_lock(fd_acct, F_UNLCK); // Unlock the file
-    close(fd_acct);
-
-    if (error_count > 0)
-    {
-        sprintf(buffer, "Updated %d account(s) with %d errors.\n", update_count, error_count);
-        write_string(client_socket, buffer);
-    }
-    else if (update_count > 0)
-    {
-        sprintf(buffer, "Successfully updated status for %d account(s).\n", update_count);
-        write_string(client_socket, buffer);
-    }
-    else
-    {
-        write_string(client_socket, "No account statuses needed updating.\n");
-    }
+    snprintf(buffer, sizeof(buffer), "User status updated; %d account(s) changed.\n", updated);
+    write_string(client_socket, buffer);
 }
 
 void handle_assign_loan(int client_socket)
 {
-    char buffer[MAX_BUFFER];
-    int found = 0;
-
-    // --- Display unassigned loans ---
-    int fd_loan = open(LOAN_FILE, O_RDONLY);
-    if (fd_loan == -1)
+    int fd = open(LOAN_FILE, O_RDONLY);
+    if (fd < 0)
     {
-        write_string(client_socket, "No loans found or error opening file.\n");
+        write_string(client_socket, "No loans found.\n");
         return;
     }
-
-    set_file_lock(fd_loan, F_RDLCK);
+    set_file_lock(fd, F_RDLCK);
     Loan loan;
-    write_string(client_socket, "\n--- Unassigned Loans (Status: PENDING) ---\n");
-    lseek(fd_loan, 0, SEEK_SET); // Rewind
-    while (read(fd_loan, &loan, sizeof(Loan)) == sizeof(Loan))
+    char line[256], money[64];
+    int found = 0;
+    while (read(fd, &loan, sizeof(loan)) == (ssize_t)sizeof(loan))
     {
         if (loan.assignedToEmployeeId == 0 && loan.status == PENDING)
         {
             found = 1;
-            sprintf(buffer, "Loan ID: %d | Customer ID: %d | Amount: ₹%.2f\n",
-                    loan.loanId, loan.userId, loan.amount);
-            write_string(client_socket, buffer);
+            format_money(loan.amount, money, sizeof(money));
+            snprintf(line, sizeof(line), "Loan %d | customer %d | %s\n", loan.loanId, loan.userId, money);
+            write_string(client_socket, line);
         }
     }
-    set_file_lock(fd_loan, F_UNLCK);
-    close(fd_loan); // Close after reading
-
+    set_file_lock(fd, F_UNLCK);
+    close(fd);
     if (!found)
     {
-        write_string(client_socket, "No unassigned loans found.\n");
-        return;
-    }
-    // --- End display ---
-
-    // 1. Get Loan ID
-    write_string(client_socket, "Enter Loan ID to assign (or 'back' to cancel): ");
-    if (read_client_input(client_socket, buffer, MAX_BUFFER) == -1)
-        return; // Disconnect
-    if (my_strcmp(buffer, "back") == 0)
-        return; // Back to menu
-    int loanId = atoi(buffer);
-    if (loanId == 0)
-    {
-        write_string(client_socket, "Invalid Loan ID.\n");
+        write_string(client_socket, "No unassigned loans.\n");
         return;
     }
 
-    // 2. Get Employee ID
-    write_string(client_socket, "Enter Employee ID to assign to (or 'back' to cancel): ");
-    if (read_client_input(client_socket, buffer, MAX_BUFFER) == -1)
-        return; // Disconnect
-    if (my_strcmp(buffer, "back") == 0)
-        return; // Back to menu
-    int employeeId = atoi(buffer);
-    if (employeeId == 0)
+    char buffer[MAX_BUFFER];
+    write_string(client_socket, "Loan ID: ");
+    if (read_client_input(client_socket, buffer, sizeof(buffer)) == -1)
+        return;
+    Loan selected = getLoan(atoi(buffer));
+    if (selected.loanId < 0 || selected.assignedToEmployeeId != 0 || selected.status != PENDING)
     {
-        write_string(client_socket, "Invalid Employee ID.\n");
+        write_string(client_socket, "Loan unavailable.\n");
         return;
     }
 
-    // Validate Employee
-    User employee = getUser(employeeId);
-    if (employee.userId == -1 || employee.role != EMPLOYEE)
+    write_string(client_socket, "Employee ID: ");
+    if (read_client_input(client_socket, buffer, sizeof(buffer)) == -1)
+        return;
+    User employee = getUser(atoi(buffer));
+    if (employee.userId < 0 || employee.role != EMPLOYEE || !employee.isActive)
     {
-        write_string(client_socket, "Invalid Employee ID.\n");
+        write_string(client_socket, "Invalid employee.\n");
         return;
     }
 
-    // Get Loan and update
-    Loan loan_to_update = getLoan(loanId);
-    if (loan_to_update.loanId == -1)
-    {
-        write_string(client_socket, "Loan not found.\n");
-        return;
-    }
-
-    if (loan_to_update.assignedToEmployeeId != 0 || loan_to_update.status != PENDING)
-    {
-        write_string(client_socket, "Loan cannot be assigned (already assigned or processed).\n");
-    }
-    else
-    {
-        loan_to_update.assignedToEmployeeId = employeeId;
-        loan_to_update.status = PROCESSING; // Mark as processing
-        if (updateLoan(loan_to_update) == 0)
-        { 
-            // Update using Data Access Layer
-            write_string(client_socket, "Loan assigned successfully.\n");
-        }
-        else
-        {
-            write_string(client_socket, "Error assigning loan.\n");
-        }
-    }
+    selected.assignedToEmployeeId = employee.userId;
+    selected.status = PROCESSING;
+    write_string(client_socket, updateLoan(selected) == 0 ? "Loan assigned.\n" : "Loan assignment failed.\n");
 }
 
 void handle_review_feedback(int client_socket)
 {
-    char buffer[MAX_BUFFER];
-    int found = 0;
-
-    // Display unreviewed feedback
-    int fd_feedback = open(FEEDBACK_FILE, O_RDONLY);
-    if (fd_feedback == -1)
+    int fd = open(FEEDBACK_FILE, O_RDONLY);
+    if (fd < 0)
     {
-        write_string(client_socket, "No feedback found or error opening file.\n");
+        write_string(client_socket, "No feedback.\n");
         return;
     }
-
-    set_file_lock(fd_feedback, F_RDLCK);
+    set_file_lock(fd, F_RDLCK);
     Feedback feedback;
-    write_string(client_socket, "\n--- Unreviewed Feedback ---\n");
-    lseek(fd_feedback, 0, SEEK_SET); // Rewind
-    while (read(fd_feedback, &feedback, sizeof(Feedback)) == sizeof(Feedback))
+    int found = 0;
+    char line[384];
+    while (read(fd, &feedback, sizeof(feedback)) == (ssize_t)sizeof(feedback))
     {
-        if (feedback.isReviewed == 0)
+        if (!feedback.isReviewed)
         {
             found = 1;
-            sprintf(buffer, "ID: %d | User: %d | Feedback: %.100s...\n",
-                    feedback.feedbackId, feedback.userId, feedback.feedbackText);
-            write_string(client_socket, buffer);
+            snprintf(line, sizeof(line), "Feedback %d | user %d | %.220s\n", feedback.feedbackId, feedback.userId, feedback.feedbackText);
+            write_string(client_socket, line);
         }
     }
-    set_file_lock(fd_feedback, F_UNLCK);
-    close(fd_feedback); // Close after reading
-
+    set_file_lock(fd, F_UNLCK);
+    close(fd);
     if (!found)
     {
-        write_string(client_socket, "No unreviewed feedback found.\n");
+        write_string(client_socket, "No unreviewed feedback.\n");
         return;
     }
 
-    // Get Feedback ID
-    write_string(client_socket, "Enter Feedback ID to mark as reviewed (or '0' to cancel): ");
-    if (read_client_input(client_socket, buffer, MAX_BUFFER) == -1)
-        return; // Disconnect
-    if (my_strcmp(buffer, "0") == 0)
-        return; // Back to menu
-    int feedbackId = atoi(buffer);
-    if (feedbackId == 0)
+    char buffer[MAX_BUFFER];
+    write_string(client_socket, "Feedback ID to mark reviewed: ");
+    if (read_client_input(client_socket, buffer, sizeof(buffer)) == -1)
+        return;
+    Feedback selected = getFeedback(atoi(buffer));
+    if (selected.feedbackId < 0)
     {
-        write_string(client_socket, "Invalid Feedback ID.\n");
+        write_string(client_socket, "Feedback not found.\n");
         return;
     }
-
-    Feedback feedback_to_update = getFeedback(feedbackId);
-    if (feedback_to_update.feedbackId == -1)
-    {
-        write_string(client_socket, "Feedback ID not found.\n");
-        return;
-    }
-
-    if (feedback_to_update.isReviewed == 1)
-    {
-        write_string(client_socket, "Feedback already marked as reviewed.\n");
-    }
-    else
-    {
-        feedback_to_update.isReviewed = 1;
-        if (updateFeedback(feedback_to_update) == 0)
-        { 
-            write_string(client_socket, "Feedback marked as reviewed.\n");
-        }
-        else
-        {
-            write_string(client_socket, "Error marking feedback as reviewed.\n");
-        }
-    }
+    selected.isReviewed = 1;
+    write_string(client_socket, updateFeedback(selected) == 0 ? "Feedback reviewed.\n" : "Feedback update failed.\n");
 }
